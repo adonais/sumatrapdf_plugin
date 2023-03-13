@@ -27,6 +27,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if (defined _M_X64) || (defined __x86_64__)
+#define PDF_DOCS_MAX_DEEPTH 800
+#else
+#define PDF_DOCS_MAX_DEEPTH 100
+#endif
 #define PDF_MAKE_NAME(STRING,NAME) STRING,
 static const char *PDF_NAME_LIST[] = {
 	"", "", "", /* dummy slots for null, true, and false */
@@ -3155,7 +3160,7 @@ pdf_dict_get_inheritable_imp(fz_context *ctx, pdf_obj *node, pdf_obj *key, int d
 		return val;
 	if (pdf_cycle(ctx, &cycle, cycle_up, node))
 		fz_throw(ctx, FZ_ERROR_GENERIC, "cycle in tree (parents)");
-	if (depth > 100)
+	if (depth > PDF_DOCS_MAX_DEEPTH)
 		fz_throw(ctx, FZ_ERROR_GENERIC, "too much recursion in tree (parents)");
 	node = pdf_dict_get(ctx, node, PDF_NAME(Parent));
 	if (node)
@@ -3178,7 +3183,7 @@ pdf_dict_getp_inheritable_imp(fz_context *ctx, pdf_obj *node, const char *path, 
 		return val;
 	if (pdf_cycle(ctx, &cycle, cycle_up, node))
 		fz_throw(ctx, FZ_ERROR_GENERIC, "cycle in tree (parents)");
-	if (depth > 100)
+	if (depth > PDF_DOCS_MAX_DEEPTH)
 		fz_throw(ctx, FZ_ERROR_GENERIC, "too much recursion in tree (parents)");
 	node = pdf_dict_get(ctx, node, PDF_NAME(Parent));
 	if (node)

@@ -204,7 +204,6 @@ void BlitPixmap(fz_pixmap* dst, fz_pixmap* src, int dstX, int dstY) {
     int dstN = dst->n;
     auto srcStride = src->stride;
     auto dstStride = dst->stride;
-    printf("dx = %d, dy = %d, srcN = %d, dstN = %d, srcStride = %td, dstStride = %td, dstX = %d, dstY = %d\n", dx, dy, srcN, dstN, src->stride, dst->stride, dstX, dstY);
     for (size_t y = 0; y < (size_t)dy; y++) {
         u8* s = src->samples + (srcStride * (size_t)y);
         size_t atY = y + (size_t)dstY;
