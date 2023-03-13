@@ -549,7 +549,9 @@ bool MemLeakInit() {
     AddFunc(_calloc_base, _calloc_base_hook, (void**)&g_calloc_base_orig);
     AddFunc(_free_base, _free_base_hook, (void**)&g_free_base_orig);
     AddFunc(_realloc_base, _realloc_base_hook, (void**)&g_realloc_base_orig);
+#if defined(ASAN_BUILD) && ASAN_BUILD
     AddFunc(_recalloc_base, _recalloc_base_hook, (void**)&g_recalloc_base_orig);
+#endif
 
     status = MH_CreateHooks(gHooks, gHooksCount);
     CrashIf(status != MH_OK);

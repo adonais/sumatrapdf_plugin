@@ -277,7 +277,7 @@ static DWORD ShowAutoUpdateDialog(HWND hwndParent, HttpRsp* rsp, UpdateCheck upd
     gUpdateCheckInProgress = false;
 
     // for store builds we do update check but ignore the result
-    if (gIsStoreBuild) {
+    if (gIsPluginBuild) {
         return 0;
     }
 
@@ -409,8 +409,8 @@ void CheckForUpdateAsync(WindowInfo* win, UpdateCheck updateCheckType) {
     const char* lang = trans::GetCurrentLangCode();
     url.Append("&lang=");
     url.Append(lang);
-    if (gIsStoreBuild) {
-        url.Append("&store");
+    if (gIsPluginBuild) {
+        url.Append("&plugin");
     }
     if (UpdateCheck::UserInitiated == updateCheckType) {
         url.Append("&force");

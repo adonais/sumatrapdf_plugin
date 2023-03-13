@@ -740,7 +740,10 @@ static void PaintPageFrameAndShadow(HDC hdc, Rect& bounds, Rect& pageRect, bool 
 #else
 static void PaintPageFrameAndShadow(HDC hdc, Rect& bounds, Rect&, bool) {
     AutoDeletePen pen(CreatePen(PS_NULL, 0, 0));
-    auto col = GetAppColor(AppColor::MainWindowBg);
+    //auto col = GetAppColor(AppColor::MainWindowBg);
+    COLORREF col;
+    ParseColor(&col, gGlobalPrefs->mainWindowBackground);
+    //logf("gGlobalPrefs->mainWindowBackground = %s, col = 0x%08x\n", gGlobalPrefs->mainWindowBackground, col);
     AutoDeleteBrush brush(CreateSolidBrush(col));
     ScopedSelectPen restorePen(hdc, pen);
     ScopedSelectObject restoreBrush(hdc, brush);
@@ -830,7 +833,9 @@ static void DrawDocument(WindowInfo* win, HDC hdc, RECT* rcArea) {
         ScopedGdiObj<HBRUSH> brush(CreateSolidBrush(WIN_COL_BLACK));
         FillRect(hdc, rcArea, brush);
     } else if (0 == nGCols) {
-        auto col = GetAppColor(AppColor::NoDocBg);
+        //auto col = GetAppColor(AppColor::NoDocBg);
+        COLORREF col;
+        ParseColor(&col, gGlobalPrefs->mainWindowBackground);
         ScopedGdiObj<HBRUSH> brush(CreateSolidBrush(col));
         FillRect(hdc, rcArea, brush);
     } else {
@@ -1620,10 +1625,32 @@ static void OnTimer(WindowInfo* win, HWND hwnd, WPARAM timerId) {
     }
 }
 
+// for skylark edit
+typedef struct _file_backup
+{
+    WCHAR rel_path[MAX_PATH];
+    WCHAR bak_path[MAX_PATH];
+    char mark_id[1024];
+    char fold_id[1024];
+    intptr_t postion;
+    intptr_t x;
+    int tab_id;
+    int cp;
+    int bakcp;
+    int eol;
+    int blank;
+    int hex;
+    int focus;
+    int zoom;
+    int status;
+    int y;
+    int sync;
+}file_backup;
+
 static void OnDropFiles(WindowInfo* win, HDROP hDrop, bool dragFinish) {
     WCHAR filePath[MAX_PATH]{};
     int nFiles = DragQueryFile(hDrop, DRAGQUERY_NUMFILES, nullptr, 0);
-
+    HWND hwnd = GetParent(GetParent(win->hwndFrame));
     bool isShift = IsShiftPressed();
     for (int i = 0; i < nFiles; i++) {
         DragQueryFile(hDrop, i, filePath, dimof(filePath));
@@ -1634,13 +1661,24 @@ static void OnDropFiles(WindowInfo* win, HDROP hDrop, bool dragFinish) {
                 str::Free(resolved);
             }
         }
-        // The first dropped document may override the current window
-        LoadArgs args(filePath, win);
-        if (isShift && !win) {
-            win = CreateAndShowWindowInfo(nullptr);
-            args.win = win;
+        if (gIsPluginBuild && hwnd != HWND_DESKTOP && win && win->hwndFrame) {
+            // Send WM_COPYDATA message to skylark
+            file_backup bak = {0};
+            COPYDATASTRUCT cpd = {0};
+            wcsncpy(bak.rel_path, filePath, MAX_PATH - 1);
+            cpd.lpData = (PVOID) &bak;
+            cpd.cbData = (DWORD) sizeof(file_backup);
+            SendMessageW(hwnd, WM_COPYDATA, 0, (LPARAM) &cpd);
         }
-        LoadDocument(args);
+        else {
+            // The first dropped document may override the current window
+            LoadArgs args(filePath, win);
+            if (isShift && !win) {
+                win = CreateAndShowWindowInfo(nullptr);
+                args.win = win;
+            }
+            LoadDocument(args);
+        }
     }
     if (dragFinish) {
         DragFinish(hDrop);

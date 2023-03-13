@@ -372,14 +372,14 @@ static bool SetupPluginMode(Flags& i) {
     // TODO: Perm::DiskAccess is required for saving viewed files and printing and
     //       Perm::InternetAccess is required for crash reports
     // (they can still be disabled through sumatrapdfrestrict.ini or -restrict)
-    RestrictPolicies(Perm::SavePreferences | Perm::FullscreenAccess);
+    RestrictPolicies(Perm::FullscreenAccess);
 
     i.reuseDdeInstance = i.exitWhenDone = false;
     gGlobalPrefs->reuseInstance = false;
     // don't allow tabbed navigation
     gGlobalPrefs->useTabs = false;
-    // always display the toolbar when embedded (as there's no menubar in that case)
-    gGlobalPrefs->showToolbar = true;
+    // don't display the toolbar when embedded (as there's no menubar in that case)
+    gGlobalPrefs->fixedPageUI.hideScrollbars = true;
     // never allow esc as a shortcut to quit
     gGlobalPrefs->escToExit = false;
     // never show the sidebar by default
@@ -661,17 +661,20 @@ static bool IsInstallerButNotInstalled() {
     return !IsOurExeInstalled();
 }
 
-static void CheckIsStoreBuild() {
+static void CheckIsPluginBuild() {
+    WCHAR* exeName;
     WCHAR* exePath = GetExePathTemp();
-    const WCHAR* exeName = path::GetBaseNameTemp(exePath);
-    if (str::FindI(exeName, L"store")) {
-        gIsStoreBuild = true;
-        return;
-    }
-    WCHAR* dir = path::GetDirTemp(exePath);
-    WCHAR* path = path::JoinTemp(dir, L"AppxManifest.xml");
-    if (file::Exists(path)) {
-        gIsStoreBuild = true;
+    if ((exeName = (WCHAR*)path::GetBaseNameTemp(exePath)) > exePath) {
+        exeName[-1] = '\0';
+        if ((exeName = (WCHAR*)path::GetBaseNameTemp(exePath)) > exePath) {
+            exeName[-1] = '\0';
+            if (!wcsicmp(exeName, L"plugins")) {
+                wcsncat(exePath, L"\\conf", MAX_PATH);
+                if (dir::Exists(exePath)) {
+                    gIsPluginBuild = true;
+                }
+            }
+        }
     }
     return;
 }
@@ -1004,7 +1007,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, __unused HINSTANCE hPrevInstance, __un
     ParseFlags(GetCommandLineW(), flags);
     gCli = &flags;
 
-    CheckIsStoreBuild();
+    CheckIsPluginBuild();
     bool isInstaller = flags.install || flags.runInstallNow || IsInstallerAndNamedAsSuch();
     bool isUninstaller = flags.uninstall;
     bool noLogHere = isInstaller || isUninstaller;

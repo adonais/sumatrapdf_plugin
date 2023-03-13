@@ -37,6 +37,13 @@ enum class AnnotationType {
     Unknown = -1
 };
 
+enum {
+    ANNOTATION_SAVE = -1,
+    ANNOTATION_GET,
+    ANNOTATION_CREATE,
+    ANNOTATION_CHANGE
+};
+
 class EngineMupdf;
 extern "C" struct pdf_annot;
 
@@ -99,4 +106,4 @@ bool SetContents(Annotation*, std::string_view sv);
 bool IsAnnotationEq(Annotation* a1, Annotation* a2);
 
 // EngineMupdf.cpp
-Annotation* MakeAnnotationPdf(EngineMupdf*, pdf_annot*, int pageNo);
+Annotation* MakeAnnotationPdf(EngineMupdf*, pdf_annot*, int pageNo, const int status);

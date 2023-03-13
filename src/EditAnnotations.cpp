@@ -274,9 +274,11 @@ static bool DidAnnotationsChange(EditAnnotationsWindow* ew) {
 }
 
 static void EnableSaveIfAnnotationsChanged(EditAnnotationsWindow* ew) {
-    bool didChange = DidAnnotationsChange(ew);
-    ew->buttonSaveToCurrentFile->SetIsEnabled(didChange);
-    ew->buttonSaveToNewFile->SetIsEnabled(didChange);
+    if (!gIsPluginBuild) {
+        bool didChange = DidAnnotationsChange(ew);
+        ew->buttonSaveToCurrentFile->SetIsEnabled(didChange);
+        ew->buttonSaveToNewFile->SetIsEnabled(didChange);
+    }
 }
 
 static void RemoveDeletedAnnotations(Vec<Annotation*>* v) {
@@ -333,13 +335,13 @@ static void WndCloseHandler(EditAnnotationsWindow* ew, WindowCloseEvent* ev) {
     delete ew;
 }
 
-extern bool SaveAnnotationsToMaybeNewPdfFile(TabInfo* tab);
+extern bool SaveAnnotationsToMaybeNewPdfFile(TabInfo* tab, WCHAR *dst_path);
 static void GetAnnotationsFromEngine(EditAnnotationsWindow* ew, TabInfo* tab);
 static void UpdateUIForSelectedAnnotation(EditAnnotationsWindow* ew, int itemNo);
 
 static void ButtonSaveToNewFileHandler(EditAnnotationsWindow* ew) {
     TabInfo* tab = ew->tab;
-    bool ok = SaveAnnotationsToMaybeNewPdfFile(tab);
+    bool ok = SaveAnnotationsToMaybeNewPdfFile(tab, nullptr);
     if (!ok) {
         return;
     }
@@ -358,6 +360,7 @@ static void ButtonSaveToCurrentPDFHandler(EditAnnotationsWindow* ew) {
     if (!ok) {
         return;
     }
+    
     str::Str msg;
     msg.AppendFmt(_TRA("Saved annotations to '%s'"), path.Get());
     tab->win->notifications->Show(tab->win->hwndCanvas, msg.AsView());
@@ -1226,7 +1229,7 @@ static void CreateMainLayout(EditAnnotationsWindow* ew) {
     {
         ButtonCreateArgs args;
         args.parent = parent;
-        args.text = "Delete annotation";
+        args.text = (uint32_t) GetSystemDefaultLCID() == 0x804 ? "删除标记" : "Delete annotation";
 
         auto w = new Button();
         w->SetInsetsPt(11, 0, 0, 0);
@@ -1508,7 +1511,7 @@ Annotation* EngineMupdfCreateAnnotation(EngineBase* engine, AnnotationType typ, 
     }
 
     pdf_update_annot(ctx, annot);
-    auto res = MakeAnnotationPdf(epdf, annot, pageNo);
+    auto res = MakeAnnotationPdf(epdf, annot, pageNo, ANNOTATION_CREATE);
     if (typ == AnnotationType::Text) {
         AutoFreeStr iconName = GetAnnotationTextIcon();
         if (!str::EqI(iconName, "Note")) {

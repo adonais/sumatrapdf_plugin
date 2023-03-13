@@ -59,7 +59,7 @@ bool gDisableDocumentRestrictions = true;
 bool gDisableDocumentRestrictions = false;
 #endif
 
-bool gIsStoreBuild = false;
+bool gIsPluginBuild = false;
 
 int GetAppIconID() {
     return IDI_SUMATRAPDF;

@@ -558,10 +558,14 @@ void LinkHandler::GotoNamedDest(const WCHAR* name) {
 }
 
 void UpdateTreeCtrlColors(WindowInfo* win) {
+    COLORREF treeBgCol;
+    COLORREF treeTxtCol;
     COLORREF labelBgCol = GetSysColor(COLOR_BTNFACE);
     COLORREF labelTxtCol = GetSysColor(COLOR_BTNTEXT);
-    COLORREF treeBgCol = GetAppColor(AppColor::DocumentBg);
-    COLORREF treeTxtCol = GetAppColor(AppColor::DocumentText);
+    //COLORREF treeBgCol = GetAppColor(AppColor::DocumentBg);
+    //COLORREF treeTxtCol = GetAppColor(AppColor::DocumentText);
+    ParseColor(&treeBgCol, gGlobalPrefs->fixedPageUI.backgroundColor);
+    ParseColor(&treeTxtCol, gGlobalPrefs->fixedPageUI.textColor);
     COLORREF splitterCol = GetSysColor(COLOR_BTNFACE);
     bool flatTreeWnd = false;
 

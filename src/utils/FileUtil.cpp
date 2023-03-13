@@ -481,6 +481,43 @@ WCHAR* GetPathOfFileInAppDir(const WCHAR* fileName) {
     AutoFreeWstr path = path::Join(moduleDir, fileName);
     return path::Normalize(path);
 }
+
+WCHAR* GetPathOfAppDir(const WCHAR* fileName) {
+    WCHAR modulePath[MAX_PATH]{};
+    GetModuleFileName(GetInstance(), modulePath, dimof(modulePath));
+    modulePath[dimof(modulePath) - 1] = '\0';
+    WCHAR* dir;
+    if ((dir = (WCHAR*)path::GetBaseNameTemp(modulePath)) > modulePath) {
+        dir[-1] = '\0';
+        if ((dir = (WCHAR*)path::GetBaseNameTemp(modulePath)) > modulePath) {
+            dir[-1] = '\0';
+            if (fileName) {
+                wcsncat(modulePath, L"\\", MAX_PATH);
+                wcsncat(modulePath, fileName, MAX_PATH);
+            }
+        }
+    }
+    return str::Dup(modulePath);
+}
+
+WCHAR* GetPathOfPluginDir(const WCHAR* fileName) {
+    WCHAR modulePath[MAX_PATH]{};
+    GetModuleFileName(GetInstance(), modulePath, dimof(modulePath));
+    modulePath[dimof(modulePath) - 1] = '\0';
+    WCHAR* dir;
+    if ((dir = (WCHAR*)path::GetBaseNameTemp(modulePath)) > modulePath) {
+        dir[-1] = '\0';
+        if ((dir = (WCHAR*)path::GetBaseNameTemp(modulePath)) > modulePath) {
+            dir[-1] = '\0';
+            wcsncat(modulePath, L"\\conf\\plugin-store", MAX_PATH);
+            if (fileName) {
+                wcsncat(modulePath, L"\\", MAX_PATH);
+                wcsncat(modulePath, fileName, MAX_PATH);
+            }
+        }
+    }
+    return str::Dup(modulePath);
+}
 } // namespace path
 
 namespace file {

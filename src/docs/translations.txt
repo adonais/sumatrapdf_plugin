@@ -15638,7 +15638,7 @@ am:Ընտրեք մեկնաբանությունը Խմբագրիչում
 br:Selecionar Anotação no Editor
 ca-xv:Selecciona l'anotació a l'editor
 ca:Selecciona l'anotació a l'editor
-cn:在编辑器中选择标注
+cn:选择标注
 co:Selezziunà l’annutazione in l’editore
 cy:Dewis Anodiad yn y Golygydd
 de:Anmerkung im Editor auswählen

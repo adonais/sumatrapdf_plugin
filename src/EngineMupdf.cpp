@@ -3353,6 +3353,7 @@ bool EngineMupdfSaveUpdated(EngineBase* engine, std::string_view path,
     fz_try(ctx) {
         pdf_save_document(ctx, epdf->pdfdoc, path.data(), &save_opts);
         ok = true;
+        epdf->modifiedAnnotations = false;
         auto dur = TimeSinceInMs(timeStart);
         logf("Saved annotations to '%s' in  %.2f ms\n", path.data(), dur);
     }
@@ -3444,7 +3445,7 @@ int EngineMupdf::GetAnnotations(Vec<Annotation*>* annotsOut) {
         pdf_page* pdfpage = pdf_page_from_fz_page(ctx, pi->page);
         pdf_annot* annot = pdf_first_annot(ctx, pdfpage);
         while (annot) {
-            Annotation* a = MakeAnnotationPdf(this, annot, i);
+            Annotation* a = MakeAnnotationPdf(this, annot, i, ANNOTATION_GET);
             if (a) {
                 annotsOut->Append(a);
                 nAnnots++;
@@ -3611,7 +3612,7 @@ Annotation* EngineMupdfGetAnnotationAtPos(EngineBase* engine, int pageNo, PointF
         annot = pdf_next_annot(epdf->ctx, annot);
     }
     if (matched) {
-        return MakeAnnotationPdf(epdf, matched, pageNo);
+        return MakeAnnotationPdf(epdf, matched, pageNo, ANNOTATION_GET);
     }
     return nullptr;
 }
@@ -3629,7 +3630,7 @@ void EngineMupdf::InvalideAnnotationsForPage(int pageNo) {
     }
 }
 
-Annotation* MakeAnnotationPdf(EngineMupdf* engine, pdf_annot* annot, int pageNo) {
+Annotation* MakeAnnotationPdf(EngineMupdf* engine, pdf_annot* annot, int pageNo, const int status) {
     CrashIf(!engine->pdfdoc);
     ScopedCritSec cs(engine->ctxAccess);
 
@@ -3639,9 +3640,10 @@ Annotation* MakeAnnotationPdf(EngineMupdf* engine, pdf_annot* annot, int pageNo)
         // unsupported type
         return nullptr;
     }
-
-    engine->modifiedAnnotations = true;
-
+    if (status > 0) {
+        engine->modifiedAnnotations = true;
+    }
+    
     CrashIf(pageNo < 1);
     Annotation* res = new Annotation();
     res->engine = engine;

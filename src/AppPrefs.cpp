@@ -230,7 +230,6 @@ bool Save() {
     if (!HasPermission(Perm::SavePreferences)) {
         return false;
     }
-
     // update display states for all tabs
     for (WindowInfo* win : gWindows) {
         for (TabInfo* tab : win->tabs) {
@@ -261,12 +260,10 @@ bool Save() {
     if (prefs.empty()) {
         return false;
     }
-
     // only save if anything's changed at all
     if (prevPrefs.size() == prefs.size() && str::Eq(prefs, prevPrefs)) {
         return true;
     }
-
     bool ok = file::WriteFile(path.Get(), prefs);
     if (!ok) {
         return false;

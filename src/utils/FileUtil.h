@@ -38,6 +38,8 @@ TempWstr GetDirTemp(const WCHAR* path);
 
 WCHAR* GetTempFilePath(const WCHAR* filePrefix = nullptr);
 WCHAR* GetPathOfFileInAppDir(const WCHAR* fileName = nullptr);
+WCHAR* GetPathOfAppDir(const WCHAR* fileName = nullptr);
+WCHAR* GetPathOfPluginDir(const WCHAR* fileName = nullptr);
 } // namespace path
 
 namespace file {

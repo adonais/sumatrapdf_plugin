@@ -55,6 +55,7 @@
     <IgnoreWarnCompileDuplicatedFilename>true</IgnoreWarnCompileDuplicatedFilename>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>enginedump</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -289,7 +290,7 @@
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
-      <TreatWarningAsError>true</TreatWarningAsError>
+      <TreatWarningAsError>false</TreatWarningAsError>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4100;4267;4457;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;NDEBUG;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\src;..\src\wingui;..\mupdf\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -299,7 +300,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <MinimalRebuild>false</MinimalRebuild>
       <StringPooling>true</StringPooling>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -318,7 +319,7 @@
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
-      <TreatWarningAsError>true</TreatWarningAsError>
+      <TreatWarningAsError>false</TreatWarningAsError>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4100;4267;4457;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;NDEBUG;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\src;..\src\wingui;..\mupdf\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -328,11 +329,12 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <MinimalRebuild>false</MinimalRebuild>
       <StringPooling>true</StringPooling>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <LanguageStandard>stdcpplatest</LanguageStandard>
+      <AdditionalOptions>/source-charset:utf-8</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

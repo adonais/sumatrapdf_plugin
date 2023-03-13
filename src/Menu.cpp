@@ -1426,7 +1426,7 @@ HMENU BuildMenuFromMenuDef(MenuDef* menuDef, HMENU menu, BuildMenuCtx* ctx) {
         if (!HasPermission(Perm::CopySelection)) {
             removeMenu |= cmdIdInList(removeIfNoCopyPerms);
         }
-        if ((cmdId == CmdCheckUpdate) && gIsStoreBuild) {
+        if ((cmdId == CmdCheckUpdate) && gIsPluginBuild) {
             removeMenu = true;
         }
 
@@ -1812,6 +1812,11 @@ void OnWindowContextMenu(WindowInfo* win, int x, int y) {
 
     win::menu::SetEnabled(popup, CmdFavoriteToggle, HasFavorites());
     win::menu::SetChecked(popup, CmdFavoriteToggle, gGlobalPrefs->showFavorites);
+    win::menu::SetChecked(popup, CmdToggleToolbar, gGlobalPrefs->showToolbar);
+        
+    if (gIsPluginBuild) {
+        win::menu::Remove(popup, CmdSaveAnnotations);
+    }
 
     const WCHAR* filePath = win->ctrl->GetFilePath();
     bool favsSupported = HasPermission(Perm::SavePreferences) && HasPermission(Perm::DiskAccess);
@@ -1841,7 +1846,7 @@ void OnWindowContextMenu(WindowInfo* win, int x, int y) {
     }
 
     // if toolbar is not shown, add option to show it
-    if (gGlobalPrefs->showToolbar) {
+    if (gGlobalPrefs->showToolbar && !gIsPluginBuild) {
         win::menu::Remove(popup, CmdToggleToolbar);
     }
     RemoveBadMenuSeparators(popup);

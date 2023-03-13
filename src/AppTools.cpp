@@ -50,10 +50,6 @@ bool IsRunningInPortableMode() {
     }
     sCacheIsPortable = 1;
 
-    if (gIsStoreBuild) {
-        return false;
-    }
-
     if (HasBeenInstalled()) {
         sCacheIsPortable = 0;
         return false;
@@ -97,35 +93,28 @@ WCHAR* AppGenDataFilename(const WCHAR* fileName) {
     if (!fileName) {
         return nullptr;
     }
-
-    if (gAppDataDir && dir::Exists(gAppDataDir)) {
-        return path::Join(gAppDataDir, fileName);
+    WCHAR* path = nullptr;
+    // use a different path for plugins builds
+    if (gIsPluginBuild) {
+        if (!(path = path::GetPathOfPluginDir(nullptr))) {
+            return nullptr;
+        }
     }
-
-    if (IsRunningInPortableMode()) {
-        /* Use the same path as the binary */
+    else if (IsRunningInPortableMode()) {
+        // Use the same path as the binary
         return path::GetPathOfFileInAppDir(fileName);
     }
-
-    WCHAR* path = GetSpecialFolderTemp(CSIDL_LOCAL_APPDATA, true);
-    if (!path) {
-        return nullptr;
+    else {
+        path = GetSpecialFolderTemp(CSIDL_LOCAL_APPDATA, true);
+        if (!path) {
+            return nullptr;
+        }
     }
     path = path::JoinTemp(path, kAppName);
     if (!path) {
         return nullptr;
-    }
-
-    // use a different path for store builds
-    if (gIsStoreBuild) {
-        // %APPLOCALDATA%/SumatraPDF Store
-        // %APPLOCALDATA%/SumatraPDF Store Preview
-        path = str::Join(path, L" Store");
-        if (gIsPreReleaseBuild) {
-            path = str::Join(path, L" Preview");
-        }
-    }
-    bool ok = dir::Create(path);
+    }    
+    bool ok = dir::CreateAll(path);
     if (!ok) {
         return nullptr;
     }
@@ -172,7 +161,7 @@ enum EditorPathType {
 
 #define kRegCurrentVer "Software\\Microsoft\\Windows\\CurrentVersion"
 
-static struct {
+static struct _editorRules{
     const char* binaryFilename;    // Editor's binary file name
     const char* inverseSearchArgs; // Parameters to be passed to the editor;
                                    // use placeholder '%f' for path to source file and '%l' for line number.
@@ -180,6 +169,7 @@ static struct {
     const char* regKey;            // Registry key path
     const char* regValue;          // Registry value name
 } editorRules[] = {
+    {"skylark.exe", "-n%l \"%f\"", BinaryDir, nullptr, nullptr},
     {"WinEdt.exe", "\"[Open(|%f|);SelPar(%l,8)]\"", BinaryPath, kRegCurrentVer "\\App Paths\\WinEdt.exe", nullptr},
     {"WinEdt.exe", "\"[Open(|%f|);SelPar(%l,8)]\"", BinaryDir, "Software\\WinEdt", "Install Root"},
     {"notepad++.exe", "-n%l \"%f\"", BinaryPath, kRegCurrentVer "\\App Paths\\notepad++.exe", nullptr},
@@ -223,10 +213,22 @@ WCHAR* AutoDetectInverseSearchCommands(HWND hwndCombo) {
     WCHAR* firstEditor = nullptr;
     WStrList foundExes;
 
-    for (auto& rule : editorRules) {
-        WCHAR* regKey = ToWstrTemp(rule.regKey);
-        WCHAR* regValue = ToWstrTemp(rule.regValue);
-        AutoFreeWstr path(LoggedReadRegStr2(regKey, regValue));
+    for (struct _editorRules& rule : editorRules) {
+        WCHAR* regKey = nullptr;
+        WCHAR* regValue = nullptr;
+        AutoFreeWstr path;
+        if (rule.regKey) {
+            regKey = ToWstrTemp(rule.regKey);
+        }
+        if (rule.regValue) {
+            regKey = ToWstrTemp(rule.regValue);
+        }
+        if (!regKey) {
+            path.Set(path::GetPathOfAppDir());
+        }
+        else {
+            path.Set(LoggedReadRegStr2(regKey, regValue));
+        }
         if (!path) {
             continue;
         }

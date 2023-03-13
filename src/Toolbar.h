@@ -2,7 +2,7 @@
    License: GPLv3 */
 
 void CreateToolbar(WindowInfo* win);
-void ToolbarUpdateStateForWindow(WindowInfo* win, bool setButtonsVisibility);
+void ToolbarUpdateStateForWindow(WindowInfo* win, bool setButtonsVisibility, bool updateFirst = false);
 void UpdateToolbarButtonsToolTipsForWindow(WindowInfo* win);
 void UpdateToolbarFindText(WindowInfo* win);
 void UpdateToolbarPageText(WindowInfo* win, int pageCount, bool updateOnly = false);

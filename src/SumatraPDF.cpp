@@ -105,6 +105,12 @@ bool gDebugShowLinks = true;
 bool gDebugShowLinks = false;
 #endif
 
+typedef struct _instance_theme
+{
+    COLORREF fg;
+    COLORREF bg;
+} instance_theme;
+
 // used to show it in debug, but is not very useful,
 // so always disable
 bool gShowFrameRate = false;
@@ -248,7 +254,7 @@ bool HasPermission(Perm permission) {
 // lets the shell open a URI for any supported scheme in
 // the appropriate application (web browser, mail client, etc.)
 bool SumatraLaunchBrowser(const WCHAR* url) {
-    if (gPluginMode) {
+    if (!gIsPluginBuild && gPluginMode) {
         // pass the URI back to the browser
         CrashIf(gWindows.empty());
         if (gWindows.empty()) {
@@ -978,7 +984,7 @@ static void UpdateUiForCurrentTab(WindowInfo* win) {
     // the toolbar isn't supported for ebook docs (yet)
     ShowOrHideToolbar(win);
     // TODO: unify?
-    ToolbarUpdateStateForWindow(win, true);
+    ToolbarUpdateStateForWindow(win, true, true);
     UpdateToolbarState(win);
 
     int pageCount = win->ctrl ? win->ctrl->PageCount() : 0;
@@ -1403,7 +1409,7 @@ static WindowInfo* CreateWindowInfo() {
     CreateToolbar(win);
     CreateSidebar(win);
     UpdateFindbox(win);
-    if (HasPermission(Perm::DiskAccess) && !gPluginMode) {
+    if (HasPermission(Perm::DiskAccess) && (gIsPluginBuild || !gPluginMode)) {
         DragAcceptFiles(win->hwndCanvas, TRUE);
     }
 
@@ -1448,7 +1454,7 @@ WindowInfo* CreateAndShowWindowInfo(SessionData* data) {
     UpdateWindow(win->hwndFrame);
 
     SetSidebarVisibility(win, false, gGlobalPrefs->showFavorites);
-    ToolbarUpdateStateForWindow(win, true);
+    ToolbarUpdateStateForWindow(win, true, true);
 
     if (WIN_STATE_FULLSCREEN == windowState) {
         EnterFullScreen(win);
@@ -1712,7 +1718,7 @@ WindowInfo* LoadDocument(LoadArgs& args) {
     if (gPluginMode) {
         // hide the menu for embedded documents opened from the plugin
         SetMenu(win->hwndFrame, nullptr);
-        return win;
+        //return win;
     }
 
     auto currTab = win->currentTab;
@@ -1951,8 +1957,9 @@ static void RerenderFixedPage() {
 
 void UpdateDocumentColors() {
     COLORREF text, bg;
-    GetFixedPageUiColors(text, bg);
-
+    //GetFixedPageUiColors(text, bg);
+    ParseColor(&bg, gGlobalPrefs->fixedPageUI.backgroundColor);
+    ParseColor(&text, gGlobalPrefs->fixedPageUI.textColor);
     if ((text == gRenderCache.textColor) && (bg == gRenderCache.backgroundColor)) {
         return; // colors didn't change
     }
@@ -2072,10 +2079,34 @@ static void CloseDocumentInCurrentTab(WindowInfo* win, bool keepUIEnabled, bool 
     // SetFocus(win->hwndFrame);
 }
 
-bool SaveAnnotationsToMaybeNewPdfFile(TabInfo* tab) {
-    WCHAR dstFileName[MAX_PATH + 1]{};
+static void
+save_file_as_change(const WCHAR *srcFileName, WCHAR *dst_path, TabInfo* tab) {
+    if (srcFileName && dst_path && tab) {
+        auto win = tab->win;
+        UpdateTabFileDisplayStateForTab(tab);
+        CloseDocumentInCurrentTab(win, true, true);
+        SetFocus(win->hwndFrame);
+        
+        AutoFreeWstr newPath(path::Normalize(dst_path));
+        // TODO: this should be 'duplicate FileInHistory"
+        RenameFileInHistory(srcFileName, newPath);
+        
+        LoadArgs args(dst_path, win);
+        args.forceReuse = true;
+        LoadDocument(args);
+        if (!gIsPluginBuild) {
+            str::Str msg;
+            TempStr dstFilePath = ToUtf8Temp(dst_path);    
+            msg.AppendFmt(_TRA("Saved annotations to '%s'"), dstFilePath.Get());
+            tab->win->notifications->Show(win->hwndCanvas, msg.AsView());
+        }
+    }
+}
 
+bool SaveAnnotationsToMaybeNewPdfFile(TabInfo* tab, WCHAR *dst_path) {
+    WCHAR dstFileName[MAX_PATH]{};
     OPENFILENAME ofn{};
+    bool ok = false;
     str::WStr fileFilter(256);
     fileFilter.Append(_TR("PDF documents"));
     fileFilter.Append(L"\1*.pdf\1");
@@ -2086,50 +2117,34 @@ bool SaveAnnotationsToMaybeNewPdfFile(TabInfo* tab) {
     EngineBase* engine = tab->AsFixed()->GetEngine();
     const WCHAR* srcFileName = engine->FileName();
     str::BufSet(dstFileName, dimof(dstFileName), srcFileName);
-
-    ofn.lStructSize = sizeof(ofn);
-    ofn.hwndOwner = tab->win->hwndFrame;
-    ofn.lpstrFile = dstFileName;
-    ofn.nMaxFile = dimof(dstFileName);
-    ofn.lpstrFilter = fileFilter.Get();
-    ofn.nFilterIndex = 1;
-    // ofn.lpstrTitle = _TR("Rename To");
-    // ofn.lpstrInitialDir = initDir;
-    ofn.lpstrDefExt = L".pdf";
-    ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY;
-
-    bool ok = GetSaveFileNameW(&ofn);
-    if (!ok) {
-        return false;
+    if (!dst_path) {
+        dst_path = dstFileName;
+        ofn.lStructSize = sizeof(ofn);
+        ofn.hwndOwner = tab->win->hwndFrame;
+        ofn.lpstrFile = dstFileName;
+        ofn.nMaxFile = dimof(dstFileName);
+        ofn.lpstrFilter = fileFilter.Get();
+        ofn.nFilterIndex = 1;
+        // ofn.lpstrTitle = _TR("Rename To");
+        // ofn.lpstrInitialDir = initDir;
+        ofn.lpstrDefExt = L".pdf";
+        ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY;
+        
+        if (!(ok = GetSaveFileNameW(&ofn))) {
+            return false;
+        }
     }
-    TempStr dstFilePath = ToUtf8Temp(dstFileName);
+    TempStr dstFilePath = ToUtf8Temp(dst_path);
     ok = EngineMupdfSaveUpdated(engine, dstFilePath, [&tab, &dstFilePath](std::string_view mupdfErr) {
         str::Str msg;
         // TODO: duplicated string
         msg.AppendFmt(_TRA("Saving of '%s' failed with: '%s'"), dstFilePath.Get(), mupdfErr.data());
         tab->win->notifications->Show(tab->win->hwndCanvas, msg.AsView(), NotificationOptions::Warning);
     });
-    if (!ok) {
-        return false;
+    if (ok) {
+        save_file_as_change(srcFileName, dst_path, tab);
     }
-
-    auto win = tab->win;
-    UpdateTabFileDisplayStateForTab(tab);
-    CloseDocumentInCurrentTab(win, true, true);
-    SetFocus(win->hwndFrame);
-
-    AutoFreeWstr newPath(path::Normalize(dstFileName));
-    // TODO: this should be 'duplicate FileInHistory"
-    RenameFileInHistory(srcFileName, newPath);
-
-    LoadArgs args(dstFileName, win);
-    args.forceReuse = true;
-    LoadDocument(args);
-
-    str::Str msg;
-    msg.AppendFmt(_TRA("Saved annotations to '%s'"), dstFilePath.Get());
-    tab->win->notifications->Show(win->hwndCanvas, msg.AsView());
-    return true;
+    return ok;
 }
 
 enum class SaveChoice {
@@ -2235,7 +2250,7 @@ static bool MaybeSaveAnnotations(TabInfo* tab) {
         case SaveChoice::Discard:
             return true;
         case SaveChoice::SaveNew:
-            SaveAnnotationsToMaybeNewPdfFile(tab);
+            SaveAnnotationsToMaybeNewPdfFile(tab, nullptr);
             break;
         case SaveChoice::SaveExisting: {
             TempStr path = ToUtf8Temp(engine->FileName());
@@ -2268,7 +2283,7 @@ void CloseCurrentTab(WindowInfo* win, bool quitIfLast) {
     ClearFindBox(win);
 
     // TODO: maybe should have a way to over-ride this for unconditional close?
-    bool canClose = MaybeSaveAnnotations(win->currentTab);
+    bool canClose = gIsPluginBuild || MaybeSaveAnnotations(win->currentTab);
     if (!canClose) {
         return;
     }
@@ -2327,7 +2342,7 @@ void CloseWindow(WindowInfo* win, bool quitIfLast, bool forceClose) {
 
     // when used as an embedded plugin, closing should happen automatically
     // when the parent window is destroyed (cf. WM_DESTROY)
-    if (gPluginMode && !gWindows.Contains(win) && !forceClose) {
+    if (!gIsPluginBuild && gPluginMode && !gWindows.Contains(win) && !forceClose) {
         return;
     }
 
@@ -2346,7 +2361,7 @@ void CloseWindow(WindowInfo* win, bool quitIfLast, bool forceClose) {
 
     bool canCloseWindow = true;
     for (auto& tab : win->tabs) {
-        bool canCloseTab = MaybeSaveAnnotations(tab);
+        bool canCloseTab = gIsPluginBuild ||MaybeSaveAnnotations(tab);
         if (!canCloseTab) {
             canCloseWindow = false;
         }
@@ -2439,18 +2454,22 @@ static bool AppendFileFilterForDoc(Controller* ctrl, str::WStr& fileFilter) {
     return true;
 }
 
-static void OnMenuSaveAs(WindowInfo* win) {
+static void OnMenuSaveAs(WindowInfo* win, WCHAR *dst_path) {
     if (!HasPermission(Perm::DiskAccess)) {
         return;
     }
     if (!win->IsDocLoaded()) {
         return;
     }
-
+    if (dst_path && str::EndsWithI(dst_path, L".pdf") && gIsPluginBuild) {
+        SaveAnnotationsToMaybeNewPdfFile(win->currentTab, dst_path);
+        return;
+    }
+    
     auto* ctrl = win->ctrl;
     const WCHAR* srcFileName = ctrl->GetFilePath();
     AutoFreeWstr urlName;
-    if (gPluginMode) {
+    if (!gIsPluginBuild && gPluginMode) {
         urlName.Set(url::GetFileName(gPluginURL));
         // fall back to a generic "filename" instead of the more confusing temporary filename
         srcFileName = urlName ? urlName.Get() : L"filename";
@@ -2525,44 +2544,34 @@ static void OnMenuSaveAs(WindowInfo* win) {
         // Remove the extension so that it can be re-added depending on the chosen filter
         dstFileName[str::Len(dstFileName) - str::Len(defExt)] = '\0';
     }
-
-    OPENFILENAME ofn{};
-    ofn.lStructSize = sizeof(ofn);
-    ofn.hwndOwner = win->hwndFrame;
-    ofn.lpstrFile = dstFileName;
-    ofn.nMaxFile = dimof(dstFileName);
-    ofn.lpstrFilter = fileFilter.Get();
-    ofn.nFilterIndex = 1;
-    // defExt can be null, we want to skip '.'
-    if (str::Len(defExt) > 0 && defExt[0] == L'.') {
-        defExt++;
-    }
-    ofn.lpstrDefExt = defExt;
-    ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY;
-    // note: explicitly not setting lpstrInitialDir so that the OS
-    // picks a reasonable default (in particular, we don't want this
-    // in plugin mode, which is likely the main reason for saving as...)
-
-    bool ok = GetSaveFileNameW(&ofn);
-    if (!ok) {
-        return;
-    }
-
-    WCHAR* realDstFileName = dstFileName;
-    bool convertToTXT = canConvertToTXT && str::EndsWithI(dstFileName, L".txt");
-    bool convertToPDF = canConvertToPDF && str::EndsWithI(dstFileName, L".pdf");
-
-    // Make sure that the file has a valid ending
-    if (!str::EndsWithI(dstFileName, defExt) && !convertToTXT && !convertToPDF) {
-        if (canConvertToTXT && 2 == ofn.nFilterIndex) {
-            defExt = L".txt";
-            convertToTXT = true;
-        } else if (canConvertToPDF && (canConvertToTXT ? 3 : 2) == (int)ofn.nFilterIndex) {
-            defExt = L".pdf";
-            convertToPDF = true;
+    bool ok = false;
+    if (!dst_path) {
+        dst_path = dstFileName;
+        OPENFILENAME ofn{};
+        ofn.lStructSize = sizeof(ofn);
+        ofn.hwndOwner = win->hwndFrame;
+        ofn.lpstrFile = dstFileName;
+        ofn.nMaxFile = dimof(dstFileName);
+        ofn.lpstrFilter = fileFilter.Get();
+        ofn.nFilterIndex = 1;
+        // defExt can be null, we want to skip '.'
+        if (str::Len(defExt) > 0 && defExt[0] == L'.') {
+            defExt++;
         }
-        realDstFileName = str::Format(L"%s%s", dstFileName, defExt);
+        ofn.lpstrDefExt = defExt;
+        ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY;
+        // note: explicitly not setting lpstrInitialDir so that the OS
+        // picks a reasonable default (in particular, we don't want this
+        // in plugin mode, which is likely the main reason for saving as...)
+        
+        ok = GetSaveFileNameW(&ofn);
+        if (!ok) {
+            return;
+        }
     }
+    WCHAR* realDstFileName = dst_path;
+    bool convertToTXT = canConvertToTXT && str::EndsWithI(dst_path, L".txt");
+    bool convertToPDF = canConvertToPDF && str::EndsWithI(dst_path, L".pdf");
 
     auto pathA(ToUtf8Temp(realDstFileName));
     AutoFreeWstr errorMsg;
@@ -2627,8 +2636,11 @@ static void OnMenuSaveAs(WindowInfo* win) {
         file::SetZoneIdentifier(realDstFileNameA);
     }
 
-    if (realDstFileName != dstFileName) {
+    if (realDstFileName != dst_path) {
         free(realDstFileName);
+    }
+    if (ok && gIsPluginBuild) {
+        save_file_as_change(srcFileName, dst_path, win->currentTab);
     }
 }
 
@@ -4138,9 +4150,12 @@ static void SaveAnnotationsAndCloseEditAnnowtationsWindow(TabInfo* tab) {
     if (!ok) {
         return;
     }
-    str::Str msg;
-    msg.AppendFmt(_TRA("Saved annotations to '%s'"), path.Get());
-    tab->win->notifications->Show(tab->win->hwndCanvas, msg.AsView());
+    
+    if (!gIsPluginBuild) {
+        str::Str msg;
+        msg.AppendFmt(_TRA("Saved annotations to '%s'"), path.Get());
+        tab->win->notifications->Show(tab->win->hwndCanvas, msg.AsView());
+    }
 
     CloseAndDeleteEditAnnotationsWindow(tab->editAnnotsWindow);
     tab->editAnnotsWindow = nullptr;
@@ -4282,6 +4297,15 @@ void ShowLogFileSmart() {
     }
 }
 
+static void replace_color(char** col, WCHAR* maybeColor) {
+    ParsedColor c;
+    ParseColor(c, ToUtf8Temp(maybeColor).Get());
+    if (c.parsedOk) {
+        char* colNewStr = SerializeColor(c.col);
+        str::ReplacePtr(col, colNewStr);
+    }
+}
+
 static LRESULT FrameOnCommand(WindowInfo* win, HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     int wmId = LOWORD(wp);
 
@@ -4381,6 +4405,13 @@ static LRESULT FrameOnCommand(WindowInfo* win, HWND hwnd, UINT msg, WPARAM wp, L
 
     // most of them require a win, the few exceptions are no-ops
     switch (wmId) {
+        case CmdTabTitle:
+            if (tab && lp) {
+                wcsncpy((wchar_t *)lp, tab->GetTabTitle(), MAX_PATH - 1);
+                return 1;
+            }
+            break;
+
         case CmdNewWindow:
             OnMenuNewWindow();
             break;
@@ -4416,7 +4447,7 @@ static LRESULT FrameOnCommand(WindowInfo* win, HWND hwnd, UINT msg, WPARAM wp, L
             break;
 
         case CmdSaveAs:
-            OnMenuSaveAs(win);
+            OnMenuSaveAs(win, (WCHAR *)lp);
             break;
 
         case CmdPrint:
@@ -4877,7 +4908,22 @@ static LRESULT FrameOnCommand(WindowInfo* win, HWND hwnd, UINT msg, WPARAM wp, L
             UpdateTreeCtrlColors(win);
             // UpdateUiForCurrentTab(win);
             break;
-
+        case CmdThemeChange:
+            if (lp) {
+                instance_theme *theme = (instance_theme *)lp;
+                wchar_t fg[32];
+                wchar_t bg[32];
+                _snwprintf(fg, 32, L"#%08x", theme->fg);
+                _snwprintf(bg, 32, L"#%08x", theme->bg);
+                replace_color(&gGlobalPrefs->mainWindowBackground, bg);
+                replace_color(&gGlobalPrefs->fixedPageUI.textColor, fg);
+                replace_color(&gGlobalPrefs->fixedPageUI.backgroundColor, bg);
+                UpdateDocumentColors();
+                UpdateTreeCtrlColors(win);
+                RepaintAsync(win, 0);
+            }
+            break;
+ 
         case CmdNavigateBack:
             if (ctrl) {
                 ctrl->Navigate(-1);

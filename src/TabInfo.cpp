@@ -22,6 +22,7 @@
 #include "Selection.h"
 #include "Translations.h"
 #include "EditAnnotations.h"
+#include "SumatraConfig.h"
 
 TabInfo::TabInfo(WindowInfo* win, const WCHAR* filePath) {
     this->win = win;
@@ -65,7 +66,7 @@ EngineBase* TabInfo::GetEngine() const {
 }
 
 const WCHAR* TabInfo::GetTabTitle() const {
-    if (gGlobalPrefs->fullPathInTitle) {
+    if (gGlobalPrefs->fullPathInTitle || gIsPluginBuild) {
         return filePath;
     }
     return path::GetBaseNameTemp(filePath);

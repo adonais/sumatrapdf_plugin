@@ -1,5 +1,10 @@
 /* Copyright 2022 the SumatraPDF project authors (see AUTHORS file).
    License: GPLv3 */
+   
+extern "C" {
+#include <mupdf/fitz.h>
+#include <mupdf/pdf.h>
+}   
 
 #include "utils/BaseUtil.h"
 #include "utils/ScopedWin.h"
@@ -12,6 +17,7 @@
 #include "Settings.h"
 #include "Controller.h"
 #include "EngineBase.h"
+#include "EngineMupdfImpl.h"
 #include "EngineAll.h"
 #include "DisplayModel.h"
 #include "AppColors.h"
@@ -34,6 +40,9 @@
 
 #include "utils/Log.h"
 
+#define NPP_DOC_MODIFY  (WM_USER+30000)
+#define NPP_DOC_STATUS  (WM_USER+30001)
+
 // https://docs.microsoft.com/en-us/windows/win32/controls/toolbar-control-reference
 
 // TODO: experimenting with matching toolbar colors with theme
@@ -42,6 +51,7 @@
 // #define USE_THEME_COLORS 1
 
 static int kButtonSpacingX = 4;
+static volatile long initial_annotation = 0;
 
 // distance between label and edit field
 constexpr int kTextPaddingRight = 6;
@@ -57,12 +67,14 @@ struct ToolbarButtonInfo {
 // thos are not real commands but we have to refer to toolbar buttons
 // is by a command. those are just background for area to be
 // covered by other HWNDs. They need the right size
-constexpr int CmdPageInfo = (int)CmdLast + 16;
-constexpr int CmdInfoText = (int)CmdLast + 17;
+//constexpr int CmdPageInfo = (int)CmdLast + 16;
+//constexpr int CmdInfoText = (int)CmdLast + 17;
+constexpr int CmdPageInfo = (int)CmdLast + 14;
+constexpr int CmdInfoText = (int)CmdLast + 15;
 
 static ToolbarButtonInfo gToolbarButtons[] = {
-    {TbIcon::Open, CmdOpenFile, _TRN("Open")},
-    {TbIcon::Print, CmdPrint, _TRN("Print")},
+//    {TbIcon::Open, CmdOpenFile, _TRN("Open")},
+//    {TbIcon::Print, CmdPrint, _TRN("Print")},
     {TbIcon::None, CmdPageInfo, nullptr}, // text box for page number + show current page / no of pages
     {TbIcon::PagePrev, CmdGoToPrevPage, _TRN("Previous Page")},
     {TbIcon::PageNext, CmdGoToNextPage, _TRN("Next Page")},
@@ -211,7 +223,7 @@ constexpr LPARAM kStateEnabled = (LPARAM)MAKELONG(1, 0);
 constexpr LPARAM kStateDisabled = (LPARAM)MAKELONG(0, 0);
 
 // TODO: this is called too often
-void ToolbarUpdateStateForWindow(WindowInfo* win, bool setButtonsVisibility) {
+void ToolbarUpdateStateForWindow(WindowInfo* win, bool setButtonsVisibility, bool updateFirst) {
     HWND hwnd = win->hwndToolbar;
     for (int i = 0; i < kButtonsCount; i++) {
         auto& tb = gToolbarButtons[i];
@@ -232,11 +244,28 @@ void ToolbarUpdateStateForWindow(WindowInfo* win, bool setButtonsVisibility) {
         UpdateToolbarFindText(win);
     }
     const WCHAR* msg = L"";
+    bool unsave = false;
+    bool bsend = gIsPluginBuild && win->hwndFrame && GetParent(GetParent(win->hwndFrame)) != HWND_DESKTOP;
     DisplayModel* dm = win->AsFixed();
-    if (dm && EngineHasUnsavedAnnotations(dm->GetEngine())) {
+    auto engine = dm ? dm->GetEngine() : nullptr;
+    EngineMupdf* epdf = AsEngineMupdf(engine);
+    if (!initial_annotation && bsend && epdf) {
+        _InterlockedExchange(&initial_annotation, 1);
+        epdf->modifiedAnnotations = (bool)SendMessageW(GetParent(win->hwndFrame), NPP_DOC_STATUS, 0, 0);
+        logf("epdf->modifiedAnnotations = %d, we send NPP_DOC_STATUS message\n", epdf->modifiedAnnotations);
+    }
+    if (dm && (unsave = EngineHasUnsavedAnnotations(engine))) {
         msg = _TR("You have unsaved annotations");
     }
-    SetToolbarInfoText(win, msg);
+    if (bsend && epdf && !updateFirst)
+    {
+        logf("unsave = %d,  we should send NPP_DOC_MODIFY message to the plugin\n", unsave);
+        SendMessageW(GetParent(win->hwndFrame), NPP_DOC_MODIFY, 0, (intptr_t)unsave);
+    }
+    else
+    {
+        SetToolbarInfoText(win, msg);
+    }
 }
 
 void ShowOrHideToolbar(WindowInfo* win) {
@@ -589,10 +618,12 @@ void UpdateToolbarPageText(WindowInfo* win, int pageCount, bool updateOnly) {
 
     Rect pageWndRect = WindowRect(win->hwndPageBg);
 
-    RECT r{};
-    SendMessageW(win->hwndToolbar, TB_GETRECT, CmdPrint, (LPARAM)&r);
-    int currX = r.right + DpiScale(win->hwndFrame, 10);
-    int currY = (r.bottom - pageWndRect.dy) / 2;
+    //RECT r{};
+    //SendMessageW(win->hwndToolbar, TB_GETRECT, CmdPrint, (LPARAM)&r);
+    //int currX = r.right + DpiScale(win->hwndFrame, 10);
+    //int currY = (r.bottom - pageWndRect.dy) / 2;
+    int currX = DpiScale(win->hwndFrame, 10);
+    int currY = 1;
 
     WCHAR* buf;
     Size size2;

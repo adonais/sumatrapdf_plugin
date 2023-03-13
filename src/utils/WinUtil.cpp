@@ -621,7 +621,7 @@ void HandleRedirectedConsoleOnShutdown() {
 TempWstr GetExePathTemp() {
     WCHAR buf[MAX_PATH]{};
     GetModuleFileNameW(nullptr, buf, dimof(buf) - 1);
-    return str::DupTemp(buf);
+    return str::DupTemp(buf, MAX_PATH);
 }
 
 /* Return directory where this executable is located.

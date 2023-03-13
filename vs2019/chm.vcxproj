@@ -55,6 +55,7 @@
     <IgnoreWarnCompileDuplicatedFilename>true</IgnoreWarnCompileDuplicatedFilename>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>chm</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -286,7 +287,7 @@
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
-      <TreatWarningAsError>true</TreatWarningAsError>
+      <TreatWarningAsError>false</TreatWarningAsError>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4018;4244;4267;4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;NDEBUG;_HAS_ITERATOR_DEBUGGING=0;_CRT_SECURE_NO_WARNINGS;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <UndefinePreprocessorDefinitions>DEBUG;%(UndefinePreprocessorDefinitions)</UndefinePreprocessorDefinitions>
@@ -296,10 +297,11 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <MinimalRebuild>false</MinimalRebuild>
       <StringPooling>true</StringPooling>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -312,7 +314,7 @@
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
-      <TreatWarningAsError>true</TreatWarningAsError>
+      <TreatWarningAsError>false</TreatWarningAsError>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4018;4244;4267;4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;NDEBUG;_HAS_ITERATOR_DEBUGGING=0;_CRT_SECURE_NO_WARNINGS;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <UndefinePreprocessorDefinitions>DEBUG;%(UndefinePreprocessorDefinitions)</UndefinePreprocessorDefinitions>
@@ -322,10 +324,11 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <MinimalRebuild>false</MinimalRebuild>
       <StringPooling>true</StringPooling>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <ExceptionHandling>false</ExceptionHandling>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalOptions>/source-charset:utf-8</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

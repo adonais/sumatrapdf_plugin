@@ -219,7 +219,7 @@ static bool AllowCommand(const CommandPaletteBuildCtx& ctx, i32 cmdId) {
         return false;
     }
 
-    if ((cmdId == CmdCheckUpdate) && gIsStoreBuild) {
+    if ((cmdId == CmdCheckUpdate) && gIsPluginBuild) {
         return false;
     }
 
