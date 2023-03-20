@@ -27,11 +27,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if (defined _M_X64) || (defined __x86_64__)
-#define PDF_DOCS_MAX_DEEPTH 800
-#else
-#define PDF_DOCS_MAX_DEEPTH 100
-#endif
 #define PDF_MAKE_NAME(STRING,NAME) STRING,
 static const char *PDF_NAME_LIST[] = {
 	"", "", "", /* dummy slots for null, true, and false */
@@ -3151,50 +3146,48 @@ int pdf_obj_refs(fz_context *ctx, pdf_obj *obj)
 
 /* Convenience functions */
 
-static pdf_obj *
-pdf_dict_get_inheritable_imp(fz_context *ctx, pdf_obj *node, pdf_obj *key, int depth, pdf_cycle_list *cycle_up)
-{
-	pdf_cycle_list cycle = { 0 }; /* SumatraPDF */;
-	pdf_obj *val = pdf_dict_get(ctx, node, key);
-	if (val)
-		return val;
-	if (pdf_cycle(ctx, &cycle, cycle_up, node))
-		fz_throw(ctx, FZ_ERROR_GENERIC, "cycle in tree (parents)");
-	if (depth > PDF_DOCS_MAX_DEEPTH)
-		fz_throw(ctx, FZ_ERROR_GENERIC, "too much recursion in tree (parents)");
-	node = pdf_dict_get(ctx, node, PDF_NAME(Parent));
-	if (node)
-		return pdf_dict_get_inheritable_imp(ctx, node, key, depth + 1, &cycle);
-	return NULL;
-}
-
 pdf_obj *
 pdf_dict_get_inheritable(fz_context *ctx, pdf_obj *node, pdf_obj *key)
 {
-	return pdf_dict_get_inheritable_imp(ctx, node, key, 0, NULL);
-}
-
-static pdf_obj *
-pdf_dict_getp_inheritable_imp(fz_context *ctx, pdf_obj *node, const char *path, int depth, pdf_cycle_list *cycle_up)
-{
-	pdf_cycle_list cycle = { 0 }; /* SumatraPDF */;
-	pdf_obj *val = pdf_dict_getp(ctx, node, path);
-	if (val)
-		return val;
-	if (pdf_cycle(ctx, &cycle, cycle_up, node))
-		fz_throw(ctx, FZ_ERROR_GENERIC, "cycle in tree (parents)");
-	if (depth > PDF_DOCS_MAX_DEEPTH)
-		fz_throw(ctx, FZ_ERROR_GENERIC, "too much recursion in tree (parents)");
-	node = pdf_dict_get(ctx, node, PDF_NAME(Parent));
-	if (node)
-		return pdf_dict_getp_inheritable_imp(ctx, node, path, depth + 1, &cycle);
+	pdf_obj *slow = node;
+	int halfbeat = -10;
+	do {
+		pdf_obj* val = pdf_dict_get(ctx, node, key);
+		if (val)
+			return val;
+		node = pdf_dict_get(ctx, node, PDF_NAME(Parent));
+		if (node == slow) {
+			fz_throw(ctx, FZ_ERROR_GENERIC, "too much recursion in tree (parents)");
+		}
+		++halfbeat;
+		if (halfbeat >=2 && slow) {
+			slow = pdf_dict_get(ctx, slow, PDF_NAME(Parent));
+			halfbeat = 0;
+		}
+	} while (node);
 	return NULL;
 }
 
 pdf_obj *
 pdf_dict_getp_inheritable(fz_context *ctx, pdf_obj *node, const char *path)
 {
-	return pdf_dict_getp_inheritable_imp(ctx, node, path, 0, NULL);
+	pdf_obj* slow = node;
+	int halfbeat = -10;
+	do {
+		pdf_obj* val = pdf_dict_getp(ctx, node, path);
+		if (val)
+			return val;
+		node = pdf_dict_get(ctx, node, PDF_NAME(Parent));
+		if (node == slow) {
+			fz_throw(ctx, FZ_ERROR_GENERIC, "too much recursion in tree (parents)");
+		}
+		++halfbeat;
+		if (halfbeat >= 2 && slow) {
+			slow = pdf_dict_get(ctx, slow, PDF_NAME(Parent));
+			halfbeat = 0;
+		}
+	} while (node);
+	return NULL;
 }
 
 void pdf_dict_put_bool(fz_context *ctx, pdf_obj *dict, pdf_obj *key, int x)
