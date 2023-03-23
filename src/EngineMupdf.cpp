@@ -1369,7 +1369,39 @@ void BuildPageLabelRec(fz_context* ctx, pdf_obj* node, int pageCount, Vec<PageLa
     }
 }
 
-WStrVec* BuildPageLabelVec(fz_context* ctx, pdf_obj* root, int pageCount) {
+// TODO: maybe remove the code completely
+// bugs: 3225 and 353
+// not sure if we should do it, it's unexpected behavior
+static bool gEnsureUniqueLabels = false;
+
+static void EnsureLabelsUnique(WStrVec* labels) {
+    if (!gEnsureUniqueLabels) {
+        return;
+    }
+    // ensure that all page labels are unique (by appending a number to duplicates)
+    WStrVec dups(*labels);
+    dups.Sort();
+    int nDups = dups.isize();
+    for (int i = 1; i < nDups; i++) {
+        if (!str::Eq(dups.at(i), dups.at(i - 1))) {
+            continue;
+        }
+        int idx = labels->Find(dups.at(i)), counter = 0;
+        while ((idx = labels->Find(dups.at(i), idx + 1)) != -1) {
+            AutoFreeWstr unique;
+            do {
+                unique.Set(str::Format(L"%s.%d", dups.at(i), ++counter));
+            } while (labels->Contains(unique));
+            str::ReplaceWithCopy(&labels->at(idx), unique);
+        }
+        nDups = dups.isize();
+        for (; i + 1 < nDups && str::Eq(dups.at(i), dups.at(i + 1)); i++) {
+            // no-op
+        }
+    }
+}
+
+static WStrVec* BuildPageLabelVec(fz_context* ctx, pdf_obj* root, int pageCount) {
     Vec<PageLabelInfo> data;
     BuildPageLabelRec(ctx, root, pageCount, data);
     data.Sort(CmpPageLabelInfo);
@@ -1410,28 +1442,7 @@ WStrVec* BuildPageLabelVec(fz_context* ctx, pdf_obj* root, int pageCount) {
         labels->at(idx) = str::Dup(L"");
     }
 
-    // ensure that all page labels are unique (by appending a number to duplicates)
-    WStrVec dups(*labels);
-    dups.Sort();
-    int nDups = dups.isize();
-    for (int i = 1; i < nDups; i++) {
-        if (!str::Eq(dups.at(i), dups.at(i - 1))) {
-            continue;
-        }
-        int idx = labels->Find(dups.at(i)), counter = 0;
-        while ((idx = labels->Find(dups.at(i), idx + 1)) != -1) {
-            AutoFreeWstr unique;
-            do {
-                unique.Set(str::Format(L"%s.%d", dups.at(i), ++counter));
-            } while (labels->Contains(unique));
-            str::ReplaceWithCopy(&labels->at(idx), unique);
-        }
-        nDups = dups.isize();
-        for (; i + 1 < nDups && str::Eq(dups.at(i), dups.at(i + 1)); i++) {
-            // no-op
-        }
-    }
-
+    EnsureLabelsUnique(labels);
     return labels;
 }
 struct PageTreeStackItem {
