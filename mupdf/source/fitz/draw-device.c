@@ -1751,7 +1751,6 @@ fz_draw_fill_image(fz_context *ctx, fz_device *devp, fz_image *image, fz_matrix 
 {
 	fz_draw_device *dev = (fz_draw_device*)devp;
 	fz_matrix local_ctm = fz_concat(in_ctm, dev->transform);
-	fz_matrix gridfit_ctm;
 	fz_pixmap *pixmap;
 	int after;
 	int dx, dy;
@@ -1778,9 +1777,10 @@ fz_draw_fill_image(fz_context *ctx, fz_device *devp, fz_image *image, fz_matrix 
 	if (color_params.op == 0)
 		eop = NULL;
 
-	gridfit_ctm = fz_gridfit_matrix(devp->flags & FZ_DEVFLAG_GRIDFIT_AS_TILED, local_ctm);
+	if (!(dev->flags & FZ_DRAWDEV_FLAGS_TYPE3))
+		local_ctm = fz_gridfit_matrix(devp->flags & FZ_DEVFLAG_GRIDFIT_AS_TILED, local_ctm);
 
-	src_area = find_src_area_required(gridfit_ctm, image, clip);
+	src_area = find_src_area_required(local_ctm, image, clip);
 	if (fz_is_empty_irect(src_area))
 		return;
 
@@ -1852,7 +1852,7 @@ fz_draw_fill_image(fz_context *ctx, fz_device *devp, fz_image *image, fz_matrix 
 				pixmap = convert_pixmap_for_painting(ctx, pixmap, model, src_cs, state->dest, color_params, dev, &eop);
 		}
 
-		fz_paint_image(ctx, state->dest, &state->scissor, state->shape, state->group_alpha, pixmap, gridfit_ctm, alpha * 255, !(devp->hints & FZ_DONT_INTERPOLATE_IMAGES), eop);
+		fz_paint_image(ctx, state->dest, &state->scissor, state->shape, state->group_alpha, pixmap, local_ctm, alpha * 255, !(devp->hints & FZ_DONT_INTERPOLATE_IMAGES), eop);
 
 		if (state->blendmode & FZ_BLEND_KNOCKOUT)
 			fz_knockout_end(ctx, dev);
@@ -1869,7 +1869,6 @@ fz_draw_fill_image_mask(fz_context *ctx, fz_device *devp, fz_image *image, fz_ma
 {
 	fz_draw_device *dev = (fz_draw_device*)devp;
 	fz_matrix local_ctm = fz_concat(in_ctm, dev->transform);
-	fz_matrix gridfit_ctm;
 	unsigned char colorbv[FZ_MAX_COLORS + 1];
 	fz_pixmap *scaled = NULL;
 	fz_pixmap *pixmap;
@@ -1896,9 +1895,10 @@ fz_draw_fill_image_mask(fz_context *ctx, fz_device *devp, fz_image *image, fz_ma
 	if (image->w == 0 || image->h == 0)
 		return;
 
-	gridfit_ctm = fz_gridfit_matrix(devp->flags & FZ_DEVFLAG_GRIDFIT_AS_TILED, local_ctm);
+	if (!(dev->flags & FZ_DRAWDEV_FLAGS_TYPE3))
+		local_ctm = fz_gridfit_matrix(devp->flags & FZ_DEVFLAG_GRIDFIT_AS_TILED, local_ctm);
 
-	src_area = find_src_area_required(gridfit_ctm, image, clip);
+	src_area = find_src_area_required(local_ctm, image, clip);
 	if (fz_is_empty_irect(src_area))
 		return;
 
@@ -1932,7 +1932,7 @@ fz_draw_fill_image_mask(fz_context *ctx, fz_device *devp, fz_image *image, fz_ma
 
 		eop = resolve_color(ctx, &op, color, colorspace, alpha, color_params, colorbv, state->dest, dev->overprint_possible);
 
-		fz_paint_image_with_color(ctx, state->dest, &state->scissor, state->shape, state->group_alpha, pixmap, gridfit_ctm, colorbv, !(devp->hints & FZ_DONT_INTERPOLATE_IMAGES), eop);
+		fz_paint_image_with_color(ctx, state->dest, &state->scissor, state->shape, state->group_alpha, pixmap, local_ctm, colorbv, !(devp->hints & FZ_DONT_INTERPOLATE_IMAGES), eop);
 
 		if (state->blendmode & FZ_BLEND_KNOCKOUT)
 			fz_knockout_end(ctx, dev);
@@ -1948,7 +1948,6 @@ fz_draw_clip_image_mask(fz_context *ctx, fz_device *devp, fz_image *image, fz_ma
 {
 	fz_draw_device *dev = (fz_draw_device*)devp;
 	fz_matrix local_ctm = fz_concat(in_ctm, dev->transform);
-	fz_matrix gridfit_ctm;
 	fz_irect bbox;
 	fz_pixmap *scaled = NULL;
 	fz_pixmap *pixmap = NULL;
@@ -1976,9 +1975,10 @@ fz_draw_clip_image_mask(fz_context *ctx, fz_device *devp, fz_image *image, fz_ma
 		return;
 	}
 
-	gridfit_ctm = fz_gridfit_matrix(devp->flags & FZ_DEVFLAG_GRIDFIT_AS_TILED, local_ctm);
+	if (!(dev->flags & FZ_DRAWDEV_FLAGS_TYPE3))
+		local_ctm = fz_gridfit_matrix(devp->flags & FZ_DEVFLAG_GRIDFIT_AS_TILED, local_ctm);
 
-	src_area = find_src_area_required(gridfit_ctm, image, clip);
+	src_area = find_src_area_required(local_ctm, image, clip);
 	if (fz_is_empty_irect(src_area))
 	{
 #ifdef DUMP_GROUP_BLENDS
@@ -2062,7 +2062,7 @@ fz_draw_clip_image_mask(fz_context *ctx, fz_device *devp, fz_image *image, fz_ma
 			fz_dump_blend(ctx, "/GA=", state[1].group_alpha);
 #endif
 
-		fz_paint_image(ctx, state[1].mask, &bbox, state[1].shape, state[1].group_alpha, pixmap, gridfit_ctm, 255, !(devp->hints & FZ_DONT_INTERPOLATE_IMAGES), 0);
+		fz_paint_image(ctx, state[1].mask, &bbox, state[1].shape, state[1].group_alpha, pixmap, local_ctm, 255, !(devp->hints & FZ_DONT_INTERPOLATE_IMAGES), 0);
 
 #ifdef DUMP_GROUP_BLENDS
 		fz_dump_blend(ctx, " to get ", state[1].mask);
