@@ -501,22 +501,13 @@ WCHAR* GetPathOfAppDir(const WCHAR* fileName) {
 }
 
 WCHAR* GetPathOfPluginDir(const WCHAR* fileName) {
-    WCHAR modulePath[MAX_PATH]{};
-    GetModuleFileName(GetInstance(), modulePath, dimof(modulePath));
-    modulePath[dimof(modulePath) - 1] = '\0';
-    WCHAR* dir;
-    if ((dir = (WCHAR*)path::GetBaseNameTemp(modulePath)) > modulePath) {
-        dir[-1] = '\0';
-        if ((dir = (WCHAR*)path::GetBaseNameTemp(modulePath)) > modulePath) {
-            dir[-1] = '\0';
-            wcsncat(modulePath, L"\\conf\\plugin-store", MAX_PATH);
-            if (fileName) {
-                wcsncat(modulePath, L"\\", MAX_PATH);
-                wcsncat(modulePath, fileName, MAX_PATH);
-            }
-        }
+    const WCHAR *env = _wgetenv(L"__skylakr_user_config_path__");
+    if (env) {
+        WCHAR modulePath[1024]{};
+        _snwprintf(modulePath, 1024, L"%s\\plugin-store", env);
+        return str::Dup(modulePath);
     }
-    return str::Dup(modulePath);
+    return NULL;
 }
 } // namespace path
 
