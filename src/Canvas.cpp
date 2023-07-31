@@ -1626,14 +1626,14 @@ static void OnTimer(WindowInfo* win, HWND hwnd, WPARAM timerId) {
 }
 
 // for skylark edit
+#undef MAX_BUFFER
+#define MAX_BUFFER 1024
+
 typedef struct _file_backup
 {
-    WCHAR rel_path[MAX_PATH];
-    WCHAR bak_path[MAX_PATH];
-    char mark_id[1024];
-    char fold_id[1024];
-    intptr_t postion;
     intptr_t x;
+    intptr_t y;
+    intptr_t postion;
     int tab_id;
     int cp;
     int bakcp;
@@ -1643,8 +1643,11 @@ typedef struct _file_backup
     int focus;
     int zoom;
     int status;
-    int y;
     int sync;
+    TCHAR rel_path[MAX_BUFFER];
+    TCHAR bak_path[MAX_BUFFER];
+    char mark_id[MAX_BUFFER];
+    char fold_id[MAX_BUFFER];
 }file_backup;
 
 static void OnDropFiles(WindowInfo* win, HDROP hDrop, bool dragFinish) {
