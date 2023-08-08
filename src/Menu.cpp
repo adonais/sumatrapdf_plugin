@@ -1439,10 +1439,11 @@ HMENU BuildMenuFromMenuDef(MenuDef* menuDef, HMENU menu, BuildMenuCtx* ctx) {
             disableMenu |= (!ctx->hasSelection && cmdIdInList(disableIfNoSelection));
             disableMenu |= (!ctx->annotationUnderCursor && (cmdId == CmdSelectAnnotation));
             disableMenu |= (!ctx->annotationUnderCursor && (cmdId == CmdDeleteAnnotation));
-            disableMenu |= !ctx->hasUnsavedAnnotations && (cmdId == CmdSaveAnnotations);
+            disableMenu |= (!ctx->hasUnsavedAnnotations && (cmdId == CmdSaveAnnotations));
 
             removeMenu |= !ctx->isCursorOnPage && (subMenuDef == menuDefCreateAnnotUnderCursor);
             removeMenu |= !ctx->hasSelection && (subMenuDef == menuDefCreateAnnotFromSelection);
+            disableMenu |= (gIsReadOnly && cmdIdInList(removeIfAnnotsNotSupported));
         }
         removeMenu |= ((subMenuDef == menuDefDebug) && !gShowDebugMenu);
         if (removeMenu) {

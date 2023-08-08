@@ -217,7 +217,8 @@ enum {
     CmdCreateAnnotLast = CmdCreateAnnotFileAttachment,
     
     CmdTabTitle = CmdFirst + 1024,
-    CmdThemeChange = CmdFirst + 1025
+    CmdThemeChange = CmdFirst + 1025,
+    CmdAttribChange = CmdFirst + 1026
 };
 
 #undef DEF_CMD

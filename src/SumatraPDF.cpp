@@ -4923,6 +4923,20 @@ static LRESULT FrameOnCommand(WindowInfo* win, HWND hwnd, UINT msg, WPARAM wp, L
                 RepaintAsync(win, 0);
             }
             break;
+            
+        case CmdAttribChange:
+            if (lp) {
+                instance_theme *theme = (instance_theme *)lp;
+                wchar_t bg[32];
+                _snwprintf(bg, 32, L"#%08x", theme->bg);
+                replace_color(&gGlobalPrefs->mainWindowBackground, bg);
+                replace_color(&gGlobalPrefs->fixedPageUI.backgroundColor, bg);
+                gIsReadOnly = !!theme->fg;
+                UpdateDocumentColors();
+                UpdateTreeCtrlColors(win);
+                RepaintAsync(win, 0);
+            }
+            break;
  
         case CmdNavigateBack:
             if (ctrl) {
