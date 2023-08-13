@@ -298,7 +298,7 @@ again:
 
 static bool SameAccelKey(const ACCEL& a1, const ACCEL& a2) {
     // 插件模式下屏蔽下面的快捷键
-    if (gIsPluginBuild && (CmdToggleFullscreen == a2.cmd || CmdNewWindow == a2.cmd || 
+    if (gIsPluginBuild && (CmdNewWindow == a2.cmd || 
         CmdDuplicateInNewWindow == a2.cmd || CmdClose == a2.cmd || 
         CmdSaveAnnotations == a2.cmd || CmdSaveAs == a2.cmd || CmdCloseCurrentDocument == a2.cmd)) {
         return true;

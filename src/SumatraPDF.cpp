@@ -3534,8 +3534,13 @@ void ExitFullScreen(WindowInfo* win) {
 }
 
 void ToggleFullScreen(WindowInfo* win, bool presentation) {
+    if (gIsPluginBuild)
+    {
+        logf("EnterFullScreen runing\n");
+        HwndSendCommand(GetParent(win->hwndFrame), CmdToggleFullscreen);
+        return;
+    }
     bool enterFullScreen = presentation ? !win->presentation : !win->isFullScreen;
-
     if (win->presentation || win->isFullScreen) {
         ExitFullScreen(win);
     } else {
@@ -3765,7 +3770,7 @@ static void OnFrameKeyEsc(WindowInfo* win) {
         ClearSearchResult(win);
         return;
     }
-    if (gGlobalPrefs->escToExit && CanCloseWindow(win)) {
+    if (!gIsPluginBuild && gGlobalPrefs->escToExit && CanCloseWindow(win)) {
         CloseWindow(win, true, false);
         return;
     }
