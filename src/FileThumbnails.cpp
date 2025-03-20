@@ -50,49 +50,51 @@ static char* GetThumbnailPathTemp(const char* filePath) {
 // removes thumbnails that don't belong to any frequently used item in file history
 void CleanUpThumbnailCache(const FileHistory& fileHistory) {
     char* thumbsPath = AppGenDataFilenameTemp(kThumbnailsDirName);
-    AutoFreeStr pattern(path::Join(thumbsPath, kPngExt, nullptr));
+    if (thumbsPath) {
+        AutoFreeStr pattern(path::Join(thumbsPath, kPngExt, nullptr));
 
-    WStrVec files;
-    WIN32_FIND_DATA fdata;
+        WStrVec files;
+        WIN32_FIND_DATA fdata;
 
-    WCHAR* pw = ToWstrTemp(pattern);
-    HANDLE hfind = FindFirstFileW(pw, &fdata);
-    if (INVALID_HANDLE_VALUE == hfind) {
-        return;
-    }
-    do {
-        if (!(fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-            files.Append(str::Dup(fdata.cFileName));
+        WCHAR* pw = ToWstrTemp(pattern);
+        HANDLE hfind = FindFirstFileW(pw, &fdata);
+        if (INVALID_HANDLE_VALUE == hfind) {
+            return;
         }
-    } while (FindNextFile(hfind, &fdata));
-    FindClose(hfind);
+        do {
+            if (!(fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+                files.Append(str::Dup(fdata.cFileName));
+            }
+        } while (FindNextFile(hfind, &fdata));
+        FindClose(hfind);
 
-    // remove files that should not be deleted
-    Vec<FileState*> list;
-    fileHistory.GetFrequencyOrder(list);
-    int n = 0;
-    for (auto& fs : list) {
-        if (n++ > kFileHistoryMaxFrequent * 2) {
-            break;
+        // remove files that should not be deleted
+        Vec<FileState*> list;
+        fileHistory.GetFrequencyOrder(list);
+        int n = 0;
+        for (auto& fs : list) {
+            if (n++ > kFileHistoryMaxFrequent * 2) {
+                break;
+            }
+            char* bmpPath = GetThumbnailPathTemp(fs->filePath);
+            if (!bmpPath) {
+                continue;
+            }
+            WCHAR* fileName = ToWstrTemp(path::GetBaseNameTemp(bmpPath));
+            int idx = files.Find(fileName);
+            if (idx < 0) {
+                continue;
+            }
+            WCHAR* path = files.PopAt(idx);
+            str::Free(path);
         }
-        char* bmpPath = GetThumbnailPathTemp(fs->filePath);
-        if (!bmpPath) {
-            continue;
-        }
-        WCHAR* fileName = ToWstrTemp(path::GetBaseNameTemp(bmpPath));
-        int idx = files.Find(fileName);
-        if (idx < 0) {
-            continue;
-        }
-        WCHAR* path = files.PopAt(idx);
-        str::Free(path);
-    }
 
-    for (auto& pathW : files) {
-        char* pathA = ToUtf8Temp(pathW);
-        char* bmpPath = path::Join(thumbsPath, pathA, nullptr);
-        file::Delete(bmpPath);
-        str::Free(bmpPath);
+        for (auto& pathW : files) {
+            char* pathA = ToUtf8Temp(pathW);
+            char* bmpPath = path::Join(thumbsPath, pathA, nullptr);
+            file::Delete(bmpPath);
+            str::Free(bmpPath);
+        }
     }
 }
 

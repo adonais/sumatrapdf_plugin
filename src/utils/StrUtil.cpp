@@ -486,11 +486,11 @@ char* Join(const char* s1, const char* s2, const char* s3, Allocator* allocator)
     char* res = (char*)Allocator::Alloc(allocator, len);
 
     char* s = res;
-    memcpy(s, s1, s1Len);
+    memcpy(s, s1 ? s1 : "", s1Len);
     s += s1Len;
-    memcpy(s, s2, s2Len);
+    memcpy(s, s2 ? s2 : "", s2Len);
     s += s2Len;
-    memcpy(s, s3, s3Len);
+    memcpy(s, s3 ? s3 : "", s3Len);
     s += s3Len;
     *s = 0;
 

@@ -97,7 +97,7 @@ WCHAR* AppGenDataFilename(const WCHAR* fileName) {
     // use a different path for plugins builds
     if (gIsPluginBuild) {
         if (!(path = path::GetPathOfPluginDir(nullptr))) {
-            return nullptr;
+            path::GetPathOfFileInAppDir(fileName);
         }
     }
     else if (IsRunningInPortableMode()) {
@@ -122,12 +122,16 @@ WCHAR* AppGenDataFilename(const WCHAR* fileName) {
 }
 
 char* AppGenDataFilenameTemp(const char* fileName) {
+    char* res = nullptr;
     if (!fileName) {
         return nullptr;
     }
     WCHAR* tmp = ToWstrTemp(fileName);
     WCHAR* path = AppGenDataFilename(tmp);
-    char* res = ToUtf8Temp(path);
+    if (!path) {
+        return nullptr;
+    }
+    res = ToUtf8Temp(path);
     str::Free(path);
     return res;
 }

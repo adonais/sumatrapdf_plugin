@@ -66,7 +66,7 @@ char* Join(const char* path, const char* fileName, Allocator* allocator) {
         fileName++;
     }
     const char* sepStr = nullptr;
-    if (!IsSep(path[str::Len(path) - 1])) {
+    if (str::Len(path) > 0 && !IsSep(path[str::Len(path) - 1])) {
         sepStr = "\\";
     }
     return str::Join(path, sepStr, fileName, allocator);
@@ -507,7 +507,7 @@ WCHAR* GetPathOfPluginDir(const WCHAR* fileName) {
         _snwprintf(modulePath, 1024, L"%s\\plugin-store", env);
         return str::Dup(modulePath);
     }
-    return NULL;
+    return nullptr;
 }
 } // namespace path
 

@@ -4942,7 +4942,7 @@ static LRESULT FrameOnCommand(WindowInfo* win, HWND hwnd, UINT msg, WPARAM wp, L
                 RepaintAsync(win, 0);
             }
             break;
- 
+
         case CmdNavigateBack:
             if (ctrl) {
                 ctrl->Navigate(-1);

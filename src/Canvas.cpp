@@ -126,6 +126,7 @@ static void OnVScroll(WindowInfo* win, WPARAM wp) {
         case SB_PAGEDOWN:
             si.nPos += si.nPage;
             break;
+        case SB_THUMBPOSITION:
         case SB_THUMBTRACK:
             si.nPos = si.nTrackPos;
             break;
@@ -178,6 +179,7 @@ static void OnHScroll(WindowInfo* win, WPARAM wp) {
         case SB_PAGERIGHT:
             si.nPos += si.nPage;
             break;
+        case SB_THUMBPOSITION:
         case SB_THUMBTRACK:
             si.nPos = si.nTrackPos;
             break;
@@ -1379,7 +1381,6 @@ Exit:
 
 static LRESULT WndProcCanvasFixedPageUI(WindowInfo* win, HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     // DbgLogMsg("canvas:", hwnd, msg, wp, lp);
-
     int x = GET_X_LPARAM(lp);
     int y = GET_Y_LPARAM(lp);
     switch (msg) {
@@ -1644,6 +1645,7 @@ typedef struct _file_backup
     int zoom;
     int status;
     int sync;
+    int view;
     TCHAR rel_path[MAX_BUFFER];
     TCHAR bak_path[MAX_BUFFER];
     char mark_id[MAX_BUFFER];
@@ -1666,9 +1668,10 @@ static void OnDropFiles(WindowInfo* win, HDROP hDrop, bool dragFinish) {
         }
         if (gIsPluginBuild && hwnd != HWND_DESKTOP && win && win->hwndFrame) {
             // Send WM_COPYDATA message to skylark
-            file_backup bak = {0};
-            COPYDATASTRUCT cpd = {0};
-            wcsncpy(bak.rel_path, filePath, MAX_PATH - 1);
+            file_backup bak = {-1, -1, 0 , -1};
+            bak.focus = 1;
+            COPYDATASTRUCT cpd = {1};
+            wcsncpy(bak.rel_path, filePath, MAX_BUFFER - 1);
             cpd.lpData = (PVOID) &bak;
             cpd.cbData = (DWORD) sizeof(file_backup);
             SendMessageW(hwnd, WM_COPYDATA, 0, (LPARAM) &cpd);
