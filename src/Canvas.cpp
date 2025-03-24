@@ -1636,12 +1636,12 @@ typedef struct _file_backup
     intptr_t y;
     intptr_t postion;
     int tab_id;
+    int focus;
     int cp;
     int bakcp;
     int eol;
     int blank;
     int hex;
-    int focus;
     int zoom;
     int status;
     int sync;
@@ -1668,8 +1668,7 @@ static void OnDropFiles(WindowInfo* win, HDROP hDrop, bool dragFinish) {
         }
         if (gIsPluginBuild && hwnd != HWND_DESKTOP && win && win->hwndFrame) {
             // Send WM_COPYDATA message to skylark
-            file_backup bak = {-1, -1, 0 , -1};
-            bak.focus = 1;
+            file_backup bak = {-1, -1, 0 , -1, 1};
             COPYDATASTRUCT cpd = {1};
             wcsncpy(bak.rel_path, filePath, MAX_BUFFER - 1);
             cpd.lpData = (PVOID) &bak;
