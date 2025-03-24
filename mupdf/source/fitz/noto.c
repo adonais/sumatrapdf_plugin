@@ -157,11 +157,11 @@ fz_lookup_builtin_font(fz_context *ctx, const char *name, int is_bold, int is_it
 				CharisSIL_BoldItalic_cff)
 	}
 #endif
-#ifndef TOFU_NOTO
+//#ifndef TOFU_NOTO
 	if (!strcmp(name, "Noto Serif")) {
 		RETURN(noto, NotoSerif_Regular_otf);
 	}
-#endif
+//#endif
 	return *size = 0, NULL;
 }
 
@@ -223,9 +223,9 @@ fz_lookup_noto_font(fz_context *ctx, int script, int language, int *size, int *s
 	case UCDN_SCRIPT_COMMON:
 	case UCDN_SCRIPT_INHERITED:
 	case UCDN_SCRIPT_UNKNOWN:
-#ifndef TOFU_NOTO
+//#ifndef TOFU_NOTO
 		RETURN(noto,NotoSerif_Regular_otf);
-#endif
+//#endif
 		break;
 
 	case UCDN_SCRIPT_HANGUL:
@@ -247,12 +247,12 @@ fz_lookup_noto_font(fz_context *ctx, int script, int language, int *size, int *s
 
 	case UCDN_SCRIPT_BRAILLE: break; /* no dedicated font; fallback to NotoSansSymbols will cover this */
 
-#ifndef TOFU_NOTO
 	case UCDN_SCRIPT_LATIN:
 	case UCDN_SCRIPT_GREEK:
 	case UCDN_SCRIPT_CYRILLIC:
 		RETURN(noto,NotoSerif_Regular_otf);
 
+#ifndef TOFU_NOTO
 	case UCDN_SCRIPT_ARABIC:
 		if (language == FZ_LANG_ur || language == FZ_LANG_urd)
 			RETURN(noto,NotoNastaliqUrdu_Regular_otf);

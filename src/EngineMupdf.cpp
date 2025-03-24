@@ -2136,7 +2136,6 @@ bool EngineMupdf::FinishLoading() {
         nPages = pageCount;
     } else {
         if (nPages != pageCount) {
-            logfa("pdfdoc->map_page_count: %d, pageCount: %d\n", pdfdoc->map_page_count, pageCount);
             ReportIf(nPages != pageCount);
             fz_warn(ctx, "mismatch between fz_count_pages() and doc->rev_page_count");
             return false;
