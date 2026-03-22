@@ -166,7 +166,7 @@ static void MakePluginWindow(WindowInfo* win, HWND hwndParent) {
     UpdateWindow(hwndFrame);
 
     // from here on, we depend on the plugin's host to resize us
-    SetFocus(hwndFrame);
+    // SetFocus(hwndFrame);
 }
 
 static bool RegisterWinClass() {

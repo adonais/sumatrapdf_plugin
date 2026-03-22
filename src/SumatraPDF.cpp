@@ -1810,7 +1810,10 @@ void LoadModelIntoTab(TabInfo* tab) {
         win->uiaProvider->OnSelectionChanged();
     }
 
-    SetFocus(win->hwndFrame);
+    if (!gIsPluginBuild) {
+        SetFocus(win->hwndFrame);
+    }
+    
     win->RedrawAll(true);
 
     if (tab->reloadOnFocus) {

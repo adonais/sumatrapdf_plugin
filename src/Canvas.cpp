@@ -1629,6 +1629,22 @@ static void OnTimer(WindowInfo* win, HWND hwnd, WPARAM timerId) {
 // for skylark edit
 #undef MAX_BUFFER
 #define MAX_BUFFER 1024
+typedef const char *(__cdecl *pwine_get_version)(void);
+
+static bool
+util_under_wine(void)
+{
+    HMODULE hntdll = NULL;
+    if (!(hntdll = GetModuleHandleW(L"ntdll.dll")))
+    {
+        return false;
+    }
+    if ((NULL != (pwine_get_version)GetProcAddress(hntdll, "wine_get_version")))
+    {
+        return true;
+    }
+    return false;
+}
 
 typedef struct _file_backup
 {
@@ -1666,7 +1682,7 @@ static void OnDropFiles(WindowInfo* win, HDROP hDrop, bool dragFinish) {
                 str::Free(resolved);
             }
         }
-        if (gIsPluginBuild && hwnd != HWND_DESKTOP && win && win->hwndFrame) {
+        if (gIsPluginBuild && hwnd != HWND_DESKTOP && !util_under_wine() && win && win->hwndFrame) {
             // Send WM_COPYDATA message to skylark
             file_backup bak = {-1, -1, 0 , -1, 1};
             COPYDATASTRUCT cpd = {1};
