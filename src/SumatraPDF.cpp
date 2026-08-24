@@ -1142,6 +1142,9 @@ static void ReplaceDocumentInCurrentTab(LoadArgs* args, DocController* ctrl, Fil
     if (!win) {
         return;
     }
+    if (!IsMainWindowValid(win) || win->isBeingClosed) {
+        return;
+    }
     WindowTab* tab = win->CurrentTab();
     ReportIf(!tab);
 
@@ -1314,6 +1317,9 @@ static void ReplaceDocumentInCurrentTab(LoadArgs* args, DocController* ctrl, Fil
     // cf. https://code.google.com/p/sumatrapdf/issues/detail?id=2541
     // ReportIf(win->IsDocLoaded() && args->showWin && win->canvasRc.IsEmpty() && !win->AsChm());
 
+    if (!IsMainWindowValid(win) || win->isBeingClosed) {
+        return;
+    }
     SetSidebarVisibility(win, showToc, gGlobalPrefs->showFavorites);
     // restore scroll state after the canvas size has been restored
     if ((args->showWin || ss.page != 1) && win->AsFixed()) {
@@ -1801,6 +1807,14 @@ void ShowErrorLoadingNotification(MainWindow* win, const char* path, bool noSave
 
 extern void SetTabState(WindowTab* tab, TabState* state);
 
+// we call this via uitask::Post so that SaveSettings() doesn't run
+// synchronously in the middle of LoadDocumentFinish while other
+// documents may still be loading or tabs are being closed
+// (fixes crashes with dangling tab->ctrl under rapid DDE opens + hooks)
+static void SaveSettingsVoid() {
+    SaveSettings();
+}
+
 MainWindow* LoadDocumentFinish(LoadArgs* args) {
     MainWindow* win = args->win;
     const char* fullPath = args->FilePath();
@@ -1831,6 +1845,10 @@ MainWindow* LoadDocumentFinish(LoadArgs* args) {
         win->currentTabTemp = AddTabToWindow(win, tab);
         win->RedrawAll(true);
 
+        if (!IsMainWindowValid(win) || win->isBeingClosed) {
+            return nullptr;
+        }
+
         // logf("LoadDocument: !forceReuse, created win->CurrentTab() at 0x%p\n", win->CurrentTab());
     } else {
         win->CurrentTab()->SetFilePath(fullPath);
@@ -1844,7 +1862,14 @@ MainWindow* LoadDocumentFinish(LoadArgs* args) {
     args->placeWindow = !gGlobalPrefs->useTabs;
     bool lazyLoad = args->lazyLoad;
     if (!lazyLoad) {
+        if (!IsMainWindowValid(win) || win->isBeingClosed) {
+            return nullptr;
+        }
         ReplaceDocumentInCurrentTab(args, args->ctrl, nullptr);
+    }
+
+    if (!IsMainWindowValid(win) || win->isBeingClosed) {
+        return nullptr;
     }
 
     if (gPluginMode) {
@@ -1896,7 +1921,8 @@ MainWindow* LoadDocumentFinish(LoadArgs* args) {
         // TODO: this seems to save the state of file that we just opened
         // add a way to skip saving currTab?
         if (!args->noSavePrefs) {
-            SaveSettings();
+            auto fn = MkFunc0Void(SaveSettingsVoid);
+            uitask::Post(fn, "SaveSettingsAfterDocLoad");
         }
     }
 
@@ -1963,6 +1989,12 @@ static void LoadDocumentAsyncFinish(LoadDocumentAsyncData* d) {
     auto args = d->args;
     RemoveNotification(d->wndNotif);
     MainWindow* win = args->win;
+    if (!IsMainWindowValid(win)) {
+        return;
+    }
+    if (win->isBeingClosed) {
+        return;
+    }
     const char* path = args->FilePath();
     if (!args->ctrl) {
         ShowErrorLoadingNotification(win, path, args->noSavePrefs);
@@ -2481,6 +2513,9 @@ bool SaveAnnotationsToExistingFile(WindowTab* tab) {
         return false;
     }
     EngineBase* engine = dm->GetEngine();
+    if (!engine) {
+        return false;
+    }
     const char* path = engine->FilePath();
     tab->ignoreNextAutoReload = true;
     ShowErrorData data{tab, path};
@@ -2533,7 +2568,7 @@ bool SaveAnnotationsToMaybeNewPdfFile(WindowTab* tab) {
 
     // TODO: automatically construct "foo.pdf" => "foo Copy.pdf"
     EngineBase* engine = tab->AsFixed()->GetEngine();
-    const char* srcFileName = engine->FilePath();
+    char* srcFileName = str::Dup(engine->FilePath());
     str::BufSet(dstFileName, dimof(dstFileName), srcFileName);
 
     ofn.lStructSize = sizeof(ofn);
@@ -2549,11 +2584,13 @@ bool SaveAnnotationsToMaybeNewPdfFile(WindowTab* tab) {
 
     bool ok = GetSaveFileNameW(&ofn);
     if (!ok) {
+        str::Free(srcFileName);
         return false;
     }
     char* dstFilePath = ToUtf8Temp(dstFileName);
     bool savingToExisting = str::Eq(dstFilePath, srcFileName);
     if (savingToExisting) {
+        str::Free(srcFileName);
         return SaveAnnotationsToExistingFile(tab);
     }
 
@@ -2561,6 +2598,7 @@ bool SaveAnnotationsToMaybeNewPdfFile(WindowTab* tab) {
     auto fn = MkFunc1(ShowSaveAnnotationError, &data);
     ok = EngineMupdfSaveUpdated(engine, dstFilePath, fn);
     if (!ok) {
+        str::Free(srcFileName);
         return false;
     }
 
@@ -2576,6 +2614,7 @@ bool SaveAnnotationsToMaybeNewPdfFile(WindowTab* tab) {
     char* newPath = path::NormalizeTemp(dstFilePath);
     // TODO: this should be 'duplicate FileInHistory"
     RenameFileInHistory(srcFileName, newPath);
+    str::Free(srcFileName);
 
     LoadArgs args(newPath, win);
     args.forceReuse = true;
@@ -2687,6 +2726,14 @@ static bool MaybeSaveAnnotations(WindowTab* tab) {
     // shouldn't really happen but did happen.
     // don't block stress testing if opening a document flags it hasving unsaved annotations
     if (IsStressTesting()) {
+        return true;
+    }
+    // if the file no longer exists (e.g. USB removed, network drive disconnected),
+    // don't try to access it - engine uses memory-mapped I/O and accessing
+    // pages of a gone file causes EXCEPTION_IN_PAGE_ERROR
+    auto filePath = dm->GetFilePath();
+    if (!file::Exists(filePath)) {
+        logf("MaybeSaveAnnotations: file '%s' no longer exists, skipping\n", filePath);
         return true;
     }
     bool shouldConfirm = EngineHasUnsavedAnnotations(engine);
@@ -2840,6 +2887,12 @@ bool CanCloseWindow(MainWindow* win) {
    menu item. */
 void CloseWindow(MainWindow* win, bool quitIfLast, bool forceClose) {
     if (!win) {
+        return;
+    }
+    // guard against reentrant CloseWindow calls triggered by Windows theme
+    // system message pumping (uxtheme.dll). The forceClose=true path from
+    // WM_DESTROY is the expected reentrant cleanup and must still proceed.
+    if (win->isBeingClosed && !forceClose) {
         return;
     }
     logf("CloseWindow: win: 0x%p, hwndFrame: 0x%x, quitIfLast: %d, forceClose: %d\n", win, win->hwndFrame,
@@ -2997,8 +3050,8 @@ static void SaveCurrentFileAs(MainWindow* win) {
         }
     }
 
-    ReportIf(!srcFileName);
     if (!srcFileName) {
+        ShowTemporaryNotification(win->hwndCanvas, _TRA("File path not available"), kNotif5SecsTimeOut);
         return;
     }
 
@@ -3083,6 +3136,7 @@ static void SaveCurrentFileAs(MainWindow* win) {
         }
     }
     if (!srcFileName) {
+        ShowTemporaryNotification(win->hwndCanvas, _TRA("File path not available"), kNotif5SecsTimeOut);
         return;
     }
     defExt = ctrl->GetDefaultFileExt();
@@ -6373,7 +6427,9 @@ LRESULT CALLBACK WndProcSumatraFrame(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
 
         case WM_INITMENUPOPUP:
             // TODO: should I just build the menu from scratch every time?
-            UpdateAppMenu(win, (HMENU)wp);
+            if (win) {
+                UpdateAppMenu(win, (HMENU)wp);
+            }
             break;
 
         case WM_COMMAND:

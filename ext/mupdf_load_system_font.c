@@ -164,6 +164,12 @@ static int font_name_eq(const char* name1, const char* name2) {
 static int cmp_win_font_info(const void* el1, const void* el2) {
     win_font_info* i1 = (win_font_info*)el1;
     win_font_info* i2 = (win_font_info*)el2;
+    if (!i1->fontface) {
+        return i2->fontface ? -1 : 0;
+    }
+    if (!i2->fontface) {
+        return 1;
+    }
     return cmp_font_name(i1->fontface, i2->fontface);
 }
 
@@ -278,6 +284,9 @@ static void append_mapping(fz_context* ctx, const char* facename, const char* pa
     g_font_allocated += strlen(facename) + 1;
     // TODO: allocate facename and path from a pool allocator
     i->fontface = strdup(facename);
+    if (!i->fontface) {
+        return;
+    }
     i->file_idx = (u32)file_idx;
     i->index = (u32)index;
     fl->len++;
@@ -721,7 +730,8 @@ static fz_font* load_windows_font_by_name(fz_context* ctx, const char* orig_name
 Exit:
     fz_free(ctx, fontname);
     if (!found) {
-        fz_throw(ctx, FZ_ERROR_GENERIC, "couldn't find system font '%s'", orig_name);
+        fz_warn(ctx, "couldn't find system font '%s'", orig_name);
+        return NULL;
     }
     buffer = load_and_cache_font(ctx, found, orig_name);
     int use_glyph_bbox = !streq(found->fontface, "DroidSansFallback");
@@ -769,6 +779,7 @@ static fz_font* load_windows_font(fz_context* ctx, const char* fontname, int bol
     }
 
     font = load_windows_font_by_name(ctx, fontname);
+    if (!font) return NULL;
     /* use the font's own metrics for base 14 fonts */
     if (is_base_14) font->flags.ft_substitute = 0;
     return font;
@@ -778,12 +789,7 @@ static fz_font* load_windows_cjk_font(fz_context* ctx, const char* fontname, int
     fz_font* font = NULL;
 
     /* try to find a matching system font before falling back to an approximate one */
-    fz_try(ctx) {
-        font = load_windows_font_by_name(ctx, fontname);
-    }
-    fz_catch(ctx) {
-        fz_report_error(ctx);
-    }
+    font = load_windows_font_by_name(ctx, fontname);
     if (font) return font;
 
     /* try to fall back to a reasonable system font */
@@ -811,12 +817,9 @@ static fz_font* load_windows_cjk_font(fz_context* ctx, const char* fontname, int
                     font = load_windows_font_by_name(ctx, "DFKaiShu-SB-Estd-BF");
                     break;
                 case FZ_ADOBE_GB:
-                    fz_try(ctx) {
-                        font = load_windows_font_by_name(ctx, "KaiTi");
-                    }
-                    fz_catch(ctx) {
+                    font = load_windows_font_by_name(ctx, "KaiTi");
+                    if (!font) {
                         font = load_windows_font_by_name(ctx, "KaiTi_GB2312");
-                        fz_report_error(ctx);
                     }
                     break;
                 case FZ_ADOBE_JAPAN:
@@ -912,12 +915,7 @@ static fz_font* load_windows_fallback_font(fz_context* ctx, int script, int lang
     }
 
     /* try to find a matching system font before falling back to an approximate one */
-    fz_try(ctx) {
-        font = load_windows_font_by_name(ctx, font_name);
-    }
-    fz_catch(ctx) {
-        fz_report_error(ctx);
-    }
+    font = load_windows_font_by_name(ctx, font_name);
     return font;
 }
 

@@ -788,6 +788,7 @@ void PrintCurrentFile(MainWindow* win, bool waitForCompletion) {
         return;
     }
     auto engine = dm->GetEngine();
+    EngineBase* pinnedEngine = nullptr;
     ReportIf(!engine);
     if (!engine) {
         return;
@@ -846,6 +847,16 @@ void PrintCurrentFile(MainWindow* win, bool waitForCompletion) {
     }
 
     HRESULT res = PrintDlgExW(&pdex);
+
+    // PrintDlgExW pumps messages, so the window may have been closed/destroyed while the dialog was open
+    if (!IsMainWindowValid(win)) {
+        logf("PrintCurrentFile: window closed during PrintDlgEx\n");
+        free(ppr);
+        GlobalFree(pdex.hDevMode);
+        GlobalFree(pdex.hDevNames);
+        return;
+    }
+
     if (res != S_OK) {
         logf("PrintCurrentFile: PrintDlgEx failed\n");
         MessageBoxWarning(win->hwndFrame, _TRA("Couldn't initialize printer"), _TRA("Printing problem."));
@@ -855,6 +866,20 @@ void PrintCurrentFile(MainWindow* win, bool waitForCompletion) {
         // it's cancel or apply so silently ignore as it's not an error
         goto Exit;
     }
+
+    // re-validate after modal dialog - tab/document may have changed while dialog was open
+    dm = win->AsFixed();
+    if (!dm) {
+        goto Exit;
+    }
+    engine = dm->GetEngine();
+    if (!engine) {
+        goto Exit;
+    }
+    pinnedEngine = engine;
+    pinnedEngine->AddRef();
+    rotation = dm->GetRotation();
+    nPages = dm->PageCount();
 
     if (!pdex.hDevNames) {
         MessageBoxWarning(win->hwndFrame, _TRA("Couldn't get printer name"), _TRA("Printing problem."));
@@ -922,8 +947,19 @@ void PrintCurrentFile(MainWindow* win, bool waitForCompletion) {
         }
     }
 
+    // re-validate engine - it may have been invalidated while message boxes were shown
+    dm = win->AsFixed();
+    if (!dm) {
+        goto Exit;
+    }
+    engine = dm->GetEngine();
+    if (!engine) {
+        goto Exit;
+    }
+
     sel = printSelection ? win->CurrentTab()->selectionOnPage : nullptr;
-    pd = new PrintData(engine, printer, ranges, advanced, rotation, sel);
+    pd = new PrintData(pinnedEngine, printer, ranges, advanced, rotation, sel);
+    SafeEngineRelease(&pinnedEngine);
 
     if (!waitForCompletion && !pd->failedEngineClone) {
         PrintToDeviceOnThread(win, pd);
@@ -933,6 +969,7 @@ void PrintCurrentFile(MainWindow* win, bool waitForCompletion) {
     }
 
 Exit:
+    SafeEngineRelease(&pinnedEngine);
     free(ppr);
     GlobalFree(pdex.hDevNames);
     GlobalFree(pdex.hDevMode);
@@ -1114,7 +1151,6 @@ static short GetPaperKind(const char* kindName) {
 
 static short GetPaperSourceByName(Printer* printer, const char* binName) {
     auto devMode = printer->devMode;
-    ReportIf(!(devMode->dmFields & DM_DEFAULTSOURCE));
     if (!(devMode->dmFields & DM_DEFAULTSOURCE)) {
         return devMode->dmDefaultSource;
     }

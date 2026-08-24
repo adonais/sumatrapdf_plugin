@@ -376,13 +376,34 @@ bool SetContents(Annotation* annot, const char* sv) {
     return true;
 }
 
+static bool IsAnnotationInEngine(EngineMupdf* e, Annotation* annot) {
+    int pageNo = annot->pageNo;
+    int pageIdx = pageNo - 1;
+    if (pageIdx < 0 || pageIdx >= e->pages.Size()) {
+        return false;
+    }
+    ScopedCritSec scope(&e->pagesAccess);
+    FzPageInfo* pageInfo = e->pages[pageIdx];
+    return pageInfo->annotations.Contains(annot);
+}
+
 void DeleteAnnotation(Annotation* annot) {
     ReportIf(!annot);
     if (!annot) {
         return;
     }
     EngineMupdf* e = annot->engine;
+    if (!e) {
+        return;
+    }
     auto a = annot->pdfannot;
+    if (!a) {
+        return;
+    }
+    if (!IsAnnotationInEngine(e, annot)) {
+        logf("DeleteAnnotation: annotation not found in engine, skipping\n");
+        return;
+    }
     bool failed = false;
     {
         auto ctx = e->Ctx();
@@ -401,6 +422,7 @@ void DeleteAnnotation(Annotation* annot) {
         logf("failed to delete annotation on page %d\n", annot->pageNo);
         return;
     }
+    annot->pdfannot = nullptr;
     MarkNotificationAsModified(e, annot, AnnotationChange::Remove);
 }
 

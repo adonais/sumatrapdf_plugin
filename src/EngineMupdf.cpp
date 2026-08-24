@@ -65,7 +65,11 @@ EngineMupdf* AsEngineMupdf(EngineBase* engine) {
 class FitzAbortCookie : public AbortCookie {
   public:
     fz_cookie cookie;
-    FitzAbortCookie() { memset(&cookie, 0, sizeof(cookie)); }
+    FitzAbortCookie() {
+        memset(&cookie, 0, sizeof(cookie));
+        // Unknown progress avoids MuPDF pre-counting annotations; the cookie is only used for aborting.
+        cookie.progress_max = (size_t)-1;
+    }
     void Abort() override { cookie.abort = 1; }
     void* GetData() override { return (void*)&cookie; }
 };
@@ -1324,7 +1328,8 @@ static ByteSlice PdfLoadAttachment(fz_context* ctx, pdf_document* doc, int no) {
         for (int i = 0; i < n; i++) {
             pdf_obj* fs = pdf_dict_get_val(ctx, dict, i);
 
-            if (!pdf_is_embedded_file(ctx, fs)) {
+            // https://github.com/sumatrapdfreader/sumatrapdf/issues/1666
+            if (false && !pdf_is_embedded_file(ctx, fs)) {
                 continue;
             }
             if (no == i + 1) {
@@ -1364,13 +1369,14 @@ static fz_outline* PdfLoadAttachments(fz_context* ctx, pdf_document* doc, const 
         for (int i = 0; i < pdf_dict_len(ctx, dict); i++) {
             pdf_obj* fs = pdf_dict_get_val(ctx, dict, i);
 
-            if (!pdf_is_embedded_file(ctx, fs)) {
+            // https://github.com/sumatrapdfreader/sumatrapdf/issues/1666
+            if (false && !pdf_is_embedded_file(ctx, fs)) {
                 continue;
             }
             pdf_filespec_params fileParams = {};
             pdf_get_filespec_params(ctx, fs, &fileParams);
             const char* nameStr = fileParams.filename;
-            if (str::IsEmpty(nameStr)) {
+            if (str::IsEmpty(nameStr) || (fileParams.size < 0)) {
                 continue;
             }
             fz_outline* link = fz_new_outline(ctx);
@@ -1694,6 +1700,11 @@ EngineMupdf::EngineMupdf() {
     fz_locks_ctx.lock = fz_lock_context_cs;
     fz_locks_ctx.unlock = fz_unlock_context_cs;
     _ctx = fz_new_context(nullptr, &fz_locks_ctx, FZ_STORE_DEFAULT);
+    if (!_ctx) {
+        // can happen when out of memory. Load() will fail
+        log("EngineMupdf: fz_new_context() failed\n");
+        return;
+    }
     InstallFitzErrorCallbacks(_ctx);
 
     install_load_windows_font_funcs(_ctx);
@@ -1701,6 +1712,10 @@ EngineMupdf::EngineMupdf() {
 }
 
 fz_context* EngineMupdf::Ctx() const {
+    if (!_ctx) {
+        // fz_new_context() failed in the constructor, likely OOM
+        return nullptr;
+    }
     return GetOrClonePerThreadContext(const_cast<EngineMupdf*>(this), _ctx);
 }
 
@@ -1734,7 +1749,9 @@ EngineMupdf::~EngineMupdf() {
     }
 
     fz_drop_document(ctx, _doc);
-    fz_purge_glyph_cache(ctx);
+    if (ctx) {
+        fz_purge_glyph_cache(ctx);
+    }
     fz_drop_context(ctx);
 
     delete pageLabels;
@@ -1927,7 +1944,10 @@ bool EngineMupdf::Load(const char* path, PasswordUI* pwdUI) {
     bool ok;
     const char* pathA = path;
     auto ctx = Ctx();
-    ReportIf(FilePath() || _doc || !ctx);
+    ReportIf(FilePath() || _doc);
+    if (!ctx) {
+        return false;
+    }
     SetFilePath(path);
 
     auto ext = path::GetExtTemp(path);
@@ -2032,7 +2052,7 @@ bool EngineMupdf::Load(const char* path, PasswordUI* pwdUI) {
 // TODO: need to do stuff to support .txt etc.
 bool EngineMupdf::Load(IStream* stream, const char* nameHint, PasswordUI* pwdUI) {
     auto ctx = Ctx();
-    ReportIf(FilePath() || _doc || !ctx);
+    ReportIf(FilePath() || _doc);
     if (!ctx) {
         return false;
     }
@@ -2064,6 +2084,9 @@ bool EngineMupdf::LoadFromStream(fz_stream* stm, const char* nameHint, PasswordU
     if (!stm) {
         return false;
     }
+    // a 3rd-party DLL might have unmasked fp exceptions on this thread, which
+    // would crash mupdf on benign NaN comparisons e.g. in pdf_resolve_link_dest()
+    MaskFpExceptions();
     auto ctx = Ctx();
 
 #if 0
@@ -2821,8 +2844,14 @@ FzPageInfo* EngineMupdf::GetFzPageInfo(int pageNo, bool loadQuick, fz_cookie* co
     ScopedCritSec scope(&pagesAccess);
 
     ReportIf(pageNo < 1 || pageNo > pageCount);
+    if (pageNo < 1 || pageNo > pageCount) {
+        return nullptr;
+    }
     int pageIdx = pageNo - 1;
     FzPageInfo* pageInfo = pages[pageIdx];
+    if (!pageInfo) {
+        return nullptr;
+    }
 
     ScopedCritSec ctxScope(ctxAccess);
     if (!pageInfo->page) {
@@ -3120,6 +3149,9 @@ void HandleLinkMupdf(EngineMupdf* e, IPageDestination* dest, ILinkHandler* linkH
     const char* uri = link->outline ? link->outline->uri : nullptr;
     if (!link->outline) {
         uri = link->link->uri;
+    }
+    if (!uri) {
+        return;
     }
     if (IsExternalLink(uri)) {
         linkHandler->LaunchURL(uri);
@@ -3630,8 +3662,8 @@ bool EngineMupdfSaveUpdated(EngineBase* engine, const char* path, const ShowErro
     if (!engine) {
         return false;
     }
-    EngineMupdf* epdf = (EngineMupdf*)engine;
-    if (!epdf->pdfdoc) {
+    EngineMupdf* epdf = AsEngineMupdf(engine);
+    if (!epdf || !epdf->pdfdoc) {
         return false;
     }
     if (!EngineMupdfHasUnsavedAnnotations(engine)) {
@@ -3851,7 +3883,7 @@ void EngineMupdfGetAnnotations(EngineBase* engine, Vec<Annotation*>& annotsOut) 
 
 bool EngineMupdfHasUnsavedAnnotations(EngineBase* engine) {
     EngineMupdf* epdf = AsEngineMupdf(engine);
-    if (!epdf->pdfdoc) {
+    if (!epdf || !epdf->pdfdoc) {
         return false;
     }
 #if 0
@@ -3872,6 +3904,9 @@ bool EngineMupdfHasUnsavedAnnotations(EngineBase* engine) {
 
 bool EngineMupdfSupportsAnnotations(EngineBase* engine) {
     EngineMupdf* epdf = AsEngineMupdf(engine);
+    if (!epdf) {
+        return false;
+    }
     return (epdf->pdfdoc != nullptr);
 }
 
@@ -4002,8 +4037,11 @@ NO_INLINE void MarkNotificationAsModified(EngineMupdf* e, Annotation* annot, Ann
     } else {
         ReportIf(change != AnnotationChange::Modify);
     }
-    auto ctx = e->Ctx();
-    RebuildCommentsFromAnnotations(ctx, pageInfo);
+    {
+        auto ctx = e->Ctx();
+        ScopedCritSec ctxScope(e->ctxAccess);
+        RebuildCommentsFromAnnotations(ctx, pageInfo);
+    }
     pageInfo->elementsNeedRebuilding = true;
 }
 

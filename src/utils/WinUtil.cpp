@@ -13,6 +13,7 @@
 #include <softpub.h>
 #include <WinCrypt.h>
 #include <bitset>
+#include <float.h>
 #include <intrin.h>
 #include <mlang.h>
 #ifdef __GNUC__
@@ -2952,6 +2953,9 @@ void TbSetPadding(HWND hwnd, int padX, int padY) {
 
 // https://docs.microsoft.com/en-us/windows/win32/controls/tb-getrect
 void TbGetRectById(HWND hwnd, int buttonId, RECT* r) {
+    if (!hwnd) {
+        return;
+    }
     auto res = SendMessageW(hwnd, TB_GETRECT, buttonId, (LPARAM)r);
     if (res == 0) {
         logf("TbGetRect: hwnd=0x%p, buttonId: %d pos: (%d, %d) size: (%d, %d)\n", hwnd, buttonId, r->left, r->top,
@@ -2962,6 +2966,9 @@ void TbGetRectById(HWND hwnd, int buttonId, RECT* r) {
 }
 
 void TbGetRectByIdx(HWND hwnd, int buttonIdx, RECT* rc) {
+    if (!hwnd) {
+        return;
+    }
     auto res = SendMessageW(hwnd, TB_GETITEMRECT, buttonIdx, (LPARAM)rc);
     if (res == 0) {
         logf("TbGetRectByIdx: hwnd=0x%p, buttonId: %d\n", hwnd, buttonIdx);
@@ -3186,6 +3193,18 @@ int MsgBox(HWND hwnd, const char* text, const char* caption, UINT flags) {
     TempWStr textW = ToWStrTemp(text);
     TempWStr captionW = ToWStrTemp(caption);
     return MessageBoxW(hwnd, textW, captionW, flags);
+}
+
+// Some 3rd-party DLLs loaded into our process (e.g. ffmpeg-based WIC codecs
+// like CopyTrans HEIC, printer drivers, shell extensions) unmask floating-point
+// exceptions in the per-thread FPU/MXCSR control word and don't restore it.
+// We (and mupdf) rely on the default environment where FP exceptions are masked
+// e.g. comparing against NaN must not trap (EXCEPTION_FLT_INVALID_OPERATION).
+// Call this after code paths that might run such DLLs.
+void MaskFpExceptions() {
+    _clearfp();
+    uint unused;
+    _controlfp_s(&unused, _MCW_EM, _MCW_EM);
 }
 
 u32 CpuID() {

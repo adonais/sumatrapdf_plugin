@@ -489,7 +489,7 @@ static NO_INLINE void VerifyWindowTab(MainWindow* win, WindowTab* tdata) {
             expectedTocVisibility = tdata->showTocPresentation;
         }
     }
-    ReportIf(win->tocVisible != expectedTocVisibility);
+    ReportDebugIf(win->tocVisible != expectedTocVisibility);
     ReportIf(tdata->canvasRc != win->canvasRc);
 }
 
@@ -497,6 +497,9 @@ static NO_INLINE void VerifyWindowTab(MainWindow* win, WindowTab* tdata) {
 // This happens when a new document is loaded or when another tab is selected.
 void SaveCurrentWindowTab(MainWindow* win) {
     if (!win) {
+        return;
+    }
+    if (!win->tabsCtrl) {
         return;
     }
 
@@ -523,6 +526,9 @@ void SaveCurrentWindowTab(MainWindow* win) {
 WindowTab* AddTabToWindow(MainWindow* win, WindowTab* tab) {
     ReportIf(!win);
     if (!win) {
+        return nullptr;
+    }
+    if (!win->tabsCtrl) {
         return nullptr;
     }
 
